@@ -10,10 +10,14 @@ import ProjectReport from './components/ProjectReport.tsx';
 import Settings from './components/Settings.tsx';
 import Login from './components/Login.tsx';
 import Billing from './components/Billing.tsx';
+import GISView from './components/GISView.tsx';
+import SustainabilityDashboard from './components/SustainabilityDashboard.tsx';
+import SolarDashboard from './components/SolarDashboard.tsx';
 import { Project, EngineResult, User, Scenario, ProjectParams, NetworkNode } from './types.ts';
 import { ElectricalEngine } from './services/electricalEngine.ts';
 import { DEFAULT_CABLES, IP_TYPES } from './constants.ts';
 import { useToast } from './context/ToastContext.tsx';
+import { GisService } from './services/gisService.ts';
 
 const LOCAL_STORAGE_KEY_HUB = 'sisqat_enterprise_hub_v4';
 const AUTH_KEY = 'sisqat_user_session';
@@ -46,11 +50,70 @@ const createTemplateProject = (name: string, sob: string, pe: string, lat: numbe
       updatedAt: new Date().toISOString(),
       params: { trafoKva: 75, profile: 'Massivos', classType: 'Automatic', manualClass: 'B', normativeTable: 'PRODIST' },
       nodes: [
-        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 2, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0 } },
+        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 2, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 } },
       ]
     }
   ]
 });
+
+const createSampleProject = (): Project => {
+  const baseLat = -22.8989;
+  const baseLng = -43.1815;
+  const cableList = Object.keys(DEFAULT_CABLES);
+  
+  return {
+    id: 'PRJ-SAMPLE-001',
+    name: 'DEMO: Expansão Porto Maravilha',
+    metadata: { 
+      sob: '2024.DEMO', 
+      electricPoint: 'BT-PRJ-01', 
+      lat: baseLat, 
+      lng: baseLng, 
+      client: 'Prefeitura do Rio / VLT Carioca', 
+      address: 'Av. Rodrigues Alves, 10', 
+      district: 'Saúde', 
+      city: 'Rio de Janeiro' 
+    },
+    activeScenarioId: 'SCN-1',
+    updatedAt: new Date().toISOString(),
+    cables: DEFAULT_CABLES,
+    ipTypes: IP_TYPES,
+    reportConfig: {
+      showJustification: true, showKpis: true, showTopology: true,
+      showMaterials: true, showSignatures: true, showUnifilar: true
+    },
+    scenarios: [
+      {
+        id: 'SCN-1',
+        name: 'CONFIGURAÇÃO ATUAL',
+        updatedAt: new Date().toISOString(),
+        params: { trafoKva: 112.5, profile: 'Massivos', classType: 'Automatic', manualClass: 'C', normativeTable: 'PRODIST' },
+        nodes: [
+          { 
+            id: 'TRAFO', parentId: '', meters: 0, cable: cableList[4], 
+            lat: baseLat, lng: baseLng, utm: GisService.toUtm(baseLat, baseLng),
+            loads: { mono: 5, bi: 1, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 } 
+          },
+          { 
+            id: 'P1', parentId: 'TRAFO', meters: 35, cable: cableList[2], 
+            lat: baseLat + 0.0003, lng: baseLng + 0.0002, utm: GisService.toUtm(baseLat + 0.0003, baseLng + 0.0002),
+            loads: { mono: 12, bi: 2, tri: 1, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKwp: 0 } 
+          },
+          { 
+            id: 'P2', parentId: 'P1', meters: 42, cable: cableList[1], 
+            lat: baseLat + 0.0006, lng: baseLng + 0.0005, utm: GisService.toUtm(baseLat + 0.0006, baseLng + 0.0005),
+            loads: { mono: 8, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKwp: 12.5 } 
+          },
+          { 
+            id: 'P3', parentId: 'P2', meters: 38, cable: cableList[0], 
+            lat: baseLat + 0.0009, lng: baseLng + 0.0008, utm: GisService.toUtm(baseLat + 0.0009, baseLng + 0.0008),
+            loads: { mono: 4, bi: 1, tri: 0, pointQty: 1, pointKva: 5.5, ipType: 'IP 70W', ipQty: 1, solarKwp: 0 } 
+          }
+        ]
+      }
+    ]
+  };
+};
 
 const App: React.FC = () => {
   const { showToast } = useToast();
@@ -61,7 +124,19 @@ const App: React.FC = () => {
 
   const [savedProjects, setSavedProjects] = useState<Record<string, Project>>(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY_HUB);
-    try { return saved ? JSON.parse(saved) : {}; } catch { return {}; }
+    let projects: Record<string, Project> = {};
+    try {
+      projects = saved ? JSON.parse(saved) : {};
+    } catch {
+      projects = {};
+    }
+    
+    // Injeção de projeto de exemplo se estiver vazio
+    if (Object.keys(projects).length === 0) {
+      const sample = createSampleProject();
+      projects = { [sample.id]: sample };
+    }
+    return projects;
   });
 
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
@@ -69,6 +144,7 @@ const App: React.FC = () => {
   
   const [allResults, setAllResults] = useState<Record<string, EngineResult>>({});
   const [isCalculating, setIsCalculating] = useState(false);
+  const [recalcTrigger, setRecalcTrigger] = useState(0);
 
   useEffect(() => {
     ElectricalEngine.runUnitTestCqt();
@@ -116,7 +192,7 @@ const App: React.FC = () => {
         if (isMounted) setAllResults(results);
       } catch (err) {
         console.error("Erro no motor de cálculo:", err);
-        showToast("Falha crítica no motor de cálculo. Revise a topologia.", "error");
+        showToast("Falha crítica no motor de cálculo.", "error");
       } finally {
         if (isMounted) setIsCalculating(false);
       }
@@ -126,7 +202,7 @@ const App: React.FC = () => {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [project, showToast]);
+  }, [project, recalcTrigger, showToast]);
 
   const activeResult = useMemo(() => {
     if (!activeScenario) return null;
@@ -165,7 +241,7 @@ const App: React.FC = () => {
       scenarios: [...project.scenarios, clone],
       activeScenarioId: newId 
     });
-    showToast("Cenário clonado com sucesso!");
+    showToast("Cenário clonado!");
   };
 
   const handleCreateEmptyScenario = () => {
@@ -183,7 +259,7 @@ const App: React.FC = () => {
         normativeTable: 'PRODIST' 
       },
       nodes: [
-        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0 } },
+        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 } },
       ]
     };
     updateProject({ 
@@ -219,6 +295,11 @@ const App: React.FC = () => {
     }
   };
 
+  const handleForceRecalculate = async () => {
+    setRecalcTrigger(prev => prev + 1);
+    showToast("Sincronizando motor de cálculo...", "info");
+  };
+
   if (!currentUser) {
     return <Login onLogin={setCurrentUser} />;
   }
@@ -238,7 +319,7 @@ const App: React.FC = () => {
           setAllResults({});
           setCurrentProjectId(n.id);
           setActiveView('dashboard');
-          showToast("Projeto criado com sucesso!");
+          showToast("Estudo iniciado com sucesso!");
         }}
         onUpdate={(id, name, sob, pe, lat, lng) => {
           setSavedProjects(prev => ({
@@ -256,7 +337,7 @@ const App: React.FC = () => {
               }
             }
           }));
-          showToast("Informações do projeto atualizadas.");
+          showToast("Metadados atualizados.");
         }}
         onDelete={(id) => {
           setSavedProjects(p => { const {[id]: _, ...rest} = p; return rest; });
@@ -289,7 +370,7 @@ const App: React.FC = () => {
               <button onClick={() => setActiveView('dashboard')} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all">← Voltar</button>
               <Billing user={currentUser} onUpdatePlan={(plan) => {
                 setCurrentUser({...currentUser, plan});
-                showToast(`Plano atualizado para ${plan}!`, "success");
+                showToast(`Upgrade para ${plan} realizado!`, "success");
               }} />
           </div>
       );
@@ -339,8 +420,28 @@ const App: React.FC = () => {
               onUpdate={handleUpdateNodes} 
               onUpdateParams={handleUpdateParams} 
               onOptimize={handleOptimizeActive}
+              onRecalculate={handleForceRecalculate}
               calculatedNodes={activeResult!.nodes}
               result={activeResult!}
+            />
+          )}
+          {activeView === 'gis' && (
+            <GISView 
+              project={project} 
+              result={activeResult!} 
+              onUpdateNodes={handleUpdateNodes} 
+            />
+          )}
+          {activeView === 'solar' && (
+            <SolarDashboard 
+              project={project} 
+              result={activeResult!} 
+            />
+          )}
+          {activeView === 'sustainability' && (
+            <SustainabilityDashboard 
+              project={project} 
+              result={activeResult!} 
             />
           )}
           {activeView === 'comparison' && (

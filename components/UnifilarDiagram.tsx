@@ -16,7 +16,8 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   
-  const nodeMap = new Map(result.nodes.map(n => [n.id, n]));
+  // FIX: Explicitly type nodeMap as Map<string, NetworkNode>
+  const nodeMap = new Map<string, NetworkNode>(result.nodes.map(n => [n.id, n]));
   
   // Organização da árvore (Levels)
   const levels: Map<string, number> = new Map();
@@ -143,6 +144,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
             const cableInfo = cables[node.cable];
             
             // Definição de "Sobre" (Estado crítico)
+            // FIX: res is correctly typed as NetworkNode | undefined
             const isOverloaded = (res?.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
             const isCriticalCqt = (res?.accumulatedCqt || 0) > 6;
             const isSobre = isOverloaded || isCriticalCqt;
@@ -187,6 +189,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
             const isTrafo = node.id === 'TRAFO';
             const res = nodeMap.get(node.id);
             const cableInfo = cables[node.cable];
+            // FIX: res is correctly typed as NetworkNode | undefined
             const isOverloaded = !isTrafo && (res?.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
             const isCriticalCqt = !isTrafo && (res?.accumulatedCqt || 0) > 6;
             const isSobre = isOverloaded || isCriticalCqt;
@@ -227,6 +230,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
                     className="fill-white/95 stroke-blue-100 shadow-[0_20px_50px_rgba(0,0,0,0.1)] backdrop-blur-sm" 
                   />
                   <text x={x + 30} y={y - 32} className="text-[10px] font-black fill-gray-900 uppercase">Ponto {node.id}</text>
+                  {/* FIX: res is correctly typed as NetworkNode | undefined */}
                   <text x={x + 30} y={y - 18} className="text-[9px] font-bold fill-blue-600 uppercase">Carga: {res?.calculatedLoad?.toFixed(1)}A</text>
                   <text x={x + 30} y={y - 6} className="text-[9px] font-bold fill-indigo-500 uppercase">CQT Acum.: {res?.accumulatedCqt?.toFixed(2)}%</text>
                   <text x={x + 30} y={y + 6} className="text-[8px] font-bold fill-gray-400 uppercase">Cabo: {node.cable}</text>

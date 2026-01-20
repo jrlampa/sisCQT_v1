@@ -46,6 +46,9 @@ const Layout: React.FC<LayoutProps> = ({
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: '📊' },
     { id: 'editor', label: 'Rede', icon: '⚡' },
+    { id: 'gis', label: 'GIS Map', icon: '🌍' },
+    { id: 'solar', label: 'GD Solar', icon: '☀️' },
+    { id: 'sustainability', label: 'ESG Hub', icon: '🌿' },
     { id: 'comparison', label: 'Cenários', icon: '⚖️' },
     { id: 'report', label: 'Memorial', icon: '📄' },
     { id: 'settings', label: 'Ajustes', icon: '⚙️' },
@@ -105,7 +108,7 @@ const Layout: React.FC<LayoutProps> = ({
 
       {/* Bottom Navigation (Mobile Only) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-white/40 flex justify-around items-center p-3 pb-6 z-[100] shadow-[0_-10px_30px_rgba(0,0,0,0.05)] rounded-t-[24px]">
-        {menuItems.slice(0, 4).map((item) => (
+        {menuItems.slice(0, 6).map((item) => (
           <button
             key={item.id}
             onClick={() => setActiveView(item.id)}

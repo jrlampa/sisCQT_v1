@@ -31,7 +31,8 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [formProject, setFormProject] = useState({ name: '', sob: '', pe: '', lat: '-22.90', lng: '-43.17' });
 
-  const projectList = Object.values(projects).sort((a, b) => 
+  // FIX: Cast Object.values to Project[] to ensure type safety during sorting
+  const projectList = (Object.values(projects) as Project[]).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
 
@@ -121,7 +122,7 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full z-10 p-4">
                 {projectList.map((prj) => (
-                  <div key={prj.id} onClick={() => onSelect(prj.id)} className="glass group p-6 rounded-[28px] border border-blue-50 hover:border-blue-400 hover:shadow-xl transition-all cursor-pointer flex flex-col relative">
+                  <div key={prj.id} onClick={() => onSelect(prj.id)} className={`glass group p-6 rounded-[28px] border hover:shadow-xl transition-all cursor-pointer flex flex-col relative ${prj.id.includes('SAMPLE') ? 'border-orange-200 bg-orange-50/10' : 'border-blue-50'}`}>
                     <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={(e) => { e.stopPropagation(); onDuplicate(prj.id); }} className="p-2 bg-white rounded-lg text-blue-500 hover:bg-blue-500 hover:text-white transition-all shadow-sm" title="Duplicar">👯</button>
                       <button onClick={(e) => openEditModal(e, prj)} className="p-2 bg-white rounded-lg text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all shadow-sm" title="Editar Informações">✏️</button>
@@ -129,7 +130,9 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
                     </div>
                     
                     <div className="flex justify-between items-start mb-4">
-                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full uppercase tracking-tighter">SOB {prj.metadata.sob}</span>
+                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter ${prj.id.includes('SAMPLE') ? 'bg-orange-500 text-white' : 'bg-blue-50 text-blue-600'}`}>
+                        {prj.id.includes('SAMPLE') ? 'ENGINEERING DEMO' : `SOB ${prj.metadata.sob}`}
+                      </span>
                       <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{prj.metadata.electricPoint}</span>
                     </div>
                     <h4 className="text-sm font-black text-gray-800 leading-tight mb-2 truncate">{prj.name}</h4>

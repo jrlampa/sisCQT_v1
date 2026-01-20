@@ -16,6 +16,13 @@ export interface LoadData {
   pointKva: number;
   ipType: string;
   ipQty: number;
+  solarKwp: number; // Capacidade Solar instalada em kWp
+}
+
+export interface UtmCoords {
+  x: number;
+  y: number;
+  zone: string;
 }
 
 export interface NetworkNode {
@@ -24,17 +31,41 @@ export interface NetworkNode {
   meters: number;
   cable: string;
   loads: LoadData;
+  lat?: number;
+  lng?: number;
+  utm?: UtmCoords;
   calculatedCqt?: number;
   accumulatedCqt?: number;
   calculatedLoad?: number;
+  jouleLossWatts?: number;
+  // Métricas de GD
+  solarVoltageRise?: number; // Elevação de tensão em % (fluxo reverso)
+  netCurrentDay?: number;    // Corrente líquida ao meio-dia
+}
+
+export interface SustainabilityMetrics {
+  annualEnergyLossKwh: number;
+  annualFinancialLossBrl: number;
+  annualCo2Kg: number;
+  potentialSavingsBrl10y: number;
+  potentialCo2Prevented10y: number;
+  treesEquivalent: number;
+}
+
+export interface GdImpactMetrics {
+  totalInstalledKwp: number;
+  maxVoltageRise: number;
+  hasReverseFlow: boolean;
+  reverseFlowAmps: number;
+  selfConsumptionRate: number;
 }
 
 export interface MonteCarloResult {
-  stabilityIndex: number; // 0 a 100
-  failureRisk: number;    // 0 a 100
-  distribution: { x: number, y: number }[]; // Dados para o gráfico de densidade
+  stabilityIndex: number; 
+  failureRisk: number;    
+  distribution: { x: number, y: number }[]; 
   avgMaxCqt: number;
-  p95Cqt: number; // Percentil 95 (pior caso provável)
+  p95Cqt: number; 
 }
 
 export interface ProjectMetadata {
@@ -98,6 +129,8 @@ export interface EngineResult {
     totalCustomers: number;
     globalDmdiFactor: number;
   };
+  sustainability: SustainabilityMetrics;
+  gdImpact: GdImpactMetrics;
   warnings: string[];
   stochastic?: MonteCarloResult;
 }
