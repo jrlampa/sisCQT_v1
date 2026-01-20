@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import ProjectHub from './components/ProjectHub.tsx';
@@ -13,107 +13,11 @@ import Billing from './components/Billing.tsx';
 import GISView from './components/GISView.tsx';
 import SustainabilityDashboard from './components/SustainabilityDashboard.tsx';
 import SolarDashboard from './components/SolarDashboard.tsx';
-import { Project, EngineResult, User, Scenario, ProjectParams, NetworkNode } from './types.ts';
-import { ElectricalEngine } from './services/electricalEngine.ts';
-import { DEFAULT_CABLES, IP_TYPES } from './constants.ts';
+import { User } from './types.ts';
 import { useToast } from './context/ToastContext.tsx';
-import { GisService } from './services/gisService.ts';
+import { useProjectManagement } from './hooks/useProjectManagement.ts';
 
-const LOCAL_STORAGE_KEY_HUB = 'sisqat_enterprise_hub_v4';
 const AUTH_KEY = 'sisqat_user_session';
-
-const createTemplateProject = (name: string, sob: string, pe: string, lat: number, lng: number): Project => ({
-  id: 'PRJ-' + Date.now(),
-  name: name,
-  metadata: { 
-    sob: sob, 
-    electricPoint: pe, 
-    lat: lat, 
-    lng: lng, 
-    client: '', 
-    address: '', 
-    district: '', 
-    city: 'Rio de Janeiro' 
-  },
-  activeScenarioId: 'SCN-1',
-  updatedAt: new Date().toISOString(),
-  cables: DEFAULT_CABLES,
-  ipTypes: IP_TYPES,
-  reportConfig: {
-    showJustification: true, showKpis: true, showTopology: true,
-    showMaterials: true, showSignatures: true, showUnifilar: true
-  },
-  scenarios: [
-    {
-      id: 'SCN-1',
-      name: 'ATUAL',
-      updatedAt: new Date().toISOString(),
-      params: { trafoKva: 75, profile: 'Massivos', classType: 'Automatic', manualClass: 'B', normativeTable: 'PRODIST', includeGdInQt: false },
-      nodes: [
-        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 2, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } },
-      ]
-    }
-  ]
-});
-
-const createSampleProject = (): Project => {
-  const baseLat = -22.8989;
-  const baseLng = -43.1815;
-  const cableList = Object.keys(DEFAULT_CABLES);
-  
-  return {
-    id: 'PRJ-SAMPLE-001',
-    name: 'DEMO: Expansão Porto Maravilha',
-    metadata: { 
-      sob: '2024.DEMO', 
-      electricPoint: 'BT-PRJ-01', 
-      lat: baseLat, 
-      lng: baseLng, 
-      client: 'Prefeitura do Rio / VLT Carioca', 
-      address: 'Av. Rodrigues Alves, 10', 
-      district: 'Saúde', 
-      city: 'Rio de Janeiro' 
-    },
-    activeScenarioId: 'SCN-1',
-    updatedAt: new Date().toISOString(),
-    cables: DEFAULT_CABLES,
-    ipTypes: IP_TYPES,
-    reportConfig: {
-      showJustification: true, showKpis: true, showTopology: true,
-      showMaterials: true, showSignatures: true, showUnifilar: true
-    },
-    scenarios: [
-      {
-        id: 'SCN-1',
-        name: 'CONFIGURAÇÃO ATUAL',
-        updatedAt: new Date().toISOString(),
-        params: { trafoKva: 112.5, profile: 'Massivos', classType: 'Automatic', manualClass: 'C', normativeTable: 'PRODIST', includeGdInQt: false },
-        nodes: [
-          { 
-            id: 'TRAFO', parentId: '', meters: 0, cable: cableList[4], 
-            lat: baseLat, lng: baseLng, utm: GisService.toUtm(baseLat, baseLng),
-            loads: { mono: 5, bi: 1, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } 
-          },
-          { 
-            id: 'P1', parentId: 'TRAFO', meters: 35, cable: cableList[2], 
-            lat: baseLat + 0.0003, lng: baseLng + 0.0002, utm: GisService.toUtm(baseLat + 0.0003, baseLng + 0.0002),
-            loads: { mono: 12, bi: 2, tri: 1, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKva: 0, solarQty: 0 } 
-          },
-          { 
-            id: 'P2', parentId: 'P1', meters: 42, cable: cableList[1], 
-            lat: baseLat + 0.0006, lng: baseLng + 0.0005, utm: GisService.toUtm(baseLat + 0.0006, baseLng + 0.0005),
-            loads: { mono: 8, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKva: 12.5, solarQty: 1 } 
-          },
-          { 
-            id: 'P3', parentId: 'P2', meters: 38, cable: cableList[0], 
-            lat: baseLat + 0.0009, lng: baseLng + 0.0008, utm: GisService.toUtm(baseLat + 0.0009, baseLng + 0.0008),
-            loads: { mono: 4, bi: 1, tri: 0, pointQty: 1, pointKva: 5.5, ipType: 'IP 70W', ipQty: 1, solarKva: 0, solarQty: 0 } 
-          }
-        ]
-      }
-    ]
-  };
-};
 
 const App: React.FC = () => {
   const { showToast } = useToast();
@@ -122,253 +26,40 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [savedProjects, setSavedProjects] = useState<Record<string, Project>>(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY_HUB);
-    let projects: Record<string, Project> = {};
-    try {
-      projects = saved ? JSON.parse(saved) : {};
-    } catch {
-      projects = {};
-    }
-    
-    // Injeção de projeto de exemplo se estiver vazio
-    if (Object.keys(projects).length === 0) {
-      const sample = createSampleProject();
-      projects = { [sample.id]: sample };
-    }
-    return projects;
-  });
-
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  const [activeView, setActiveView] = useState('dashboard');
-  
-  const [allResults, setAllResults] = useState<Record<string, EngineResult>>({});
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [recalcTrigger, setRecalcTrigger] = useState(0);
-
-  useEffect(() => {
-    ElectricalEngine.runUnitTestCqt();
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY_HUB, JSON.stringify(savedProjects));
-  }, [savedProjects]);
+  const pm = useProjectManagement();
 
   useEffect(() => {
     if (currentUser) sessionStorage.setItem(AUTH_KEY, JSON.stringify(currentUser));
     else sessionStorage.removeItem(AUTH_KEY);
   }, [currentUser]);
 
-  const project = useMemo(() => currentProjectId ? savedProjects[currentProjectId] : null, [currentProjectId, savedProjects]);
-
-  const activeScenario = useMemo(() => {
-    if (!project) return null;
-    return project.scenarios.find(s => s.id === project.activeScenarioId) || project.scenarios[0];
-  }, [project]);
-
-  useEffect(() => {
-    if (!project) {
-      setAllResults({});
-      return;
-    }
-
-    let isMounted = true;
-    setIsCalculating(true);
-
-    const timeoutId = setTimeout(() => {
-      if (!isMounted) return;
-      
-      const results: Record<string, EngineResult> = {};
-      try {
-        for (const s of project.scenarios) {
-          results[s.id] = ElectricalEngine.calculate(
-            s.id, 
-            s.nodes, 
-            s.params, 
-            project.cables, 
-            project.ipTypes
-          );
-        }
-        if (isMounted) setAllResults(results);
-      } catch (err) {
-        console.error("Erro no motor de cálculo:", err);
-        showToast("Falha crítica no motor de cálculo.", "error");
-      } finally {
-        if (isMounted) setIsCalculating(false);
-      }
-    }, 150);
-
-    return () => {
-      isMounted = false;
-      clearTimeout(timeoutId);
-    };
-  }, [project, recalcTrigger, showToast]);
-
-  const activeResult = useMemo(() => {
-    if (!activeScenario) return null;
-    return allResults[activeScenario.id] || null;
-  }, [activeScenario, allResults]);
-
-  const updateProject = useCallback((updates: Partial<Project>) => {
-    if (!currentProjectId) return;
-    setSavedProjects(prev => ({
-      ...prev,
-      [currentProjectId]: { ...prev[currentProjectId], ...updates, updatedAt: new Date().toISOString() }
-    }));
-  }, [currentProjectId]);
-
-  const updateActiveScenario = useCallback((updates: Partial<Scenario>) => {
-    if (!project || !activeScenario) return;
-    const newScenarios = project.scenarios.map(s => 
-      s.id === project.activeScenarioId ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s
-    );
-    updateProject({ scenarios: newScenarios });
-  }, [project, activeScenario, updateProject]);
-
-  const handleUpdateNodes = (nodes: NetworkNode[]) => updateActiveScenario({ nodes });
-  const handleUpdateParams = (params: ProjectParams) => updateActiveScenario({ params });
-
-  const handleCloneScenario = () => {
-    if (!project || !activeScenario) return;
-    const newId = 'SCN-' + Date.now();
-    const clone: Scenario = {
-      ...JSON.parse(JSON.stringify(activeScenario)),
-      id: newId,
-      name: `${activeScenario.name} (Cópia)`,
-      updatedAt: new Date().toISOString()
-    };
-    updateProject({ 
-      scenarios: [...project.scenarios, clone],
-      activeScenarioId: newId 
-    });
-    showToast("Cenário clonado!");
-  };
-
-  const handleCreateEmptyScenario = () => {
-    if (!project) return;
-    const newId = 'SCN-' + Date.now();
-    const newScenario: Scenario = {
-      id: newId,
-      name: `CENÁRIO ${project.scenarios.length + 1}`,
-      updatedAt: new Date().toISOString(),
-      params: { 
-        trafoKva: 75, 
-        profile: 'Massivos', 
-        classType: 'Automatic', 
-        manualClass: 'B', 
-        normativeTable: 'PRODIST',
-        includeGdInQt: false
-      },
-      nodes: [
-        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } },
-      ]
-    };
-    updateProject({ 
-      scenarios: [...project.scenarios, newScenario],
-      activeScenarioId: newId 
-    });
-    showToast("Novo cenário vazio criado.");
-  };
-
-  const handleDeleteScenario = (id: string) => {
-    if (!project || project.scenarios.length <= 1) return;
-    const newScenarios = project.scenarios.filter(s => s.id !== id);
-    updateProject({ 
-      scenarios: newScenarios,
-      activeScenarioId: newScenarios[0].id 
-    });
-    showToast("Cenário removido.");
-  };
-
-  const handleOptimizeActive = () => {
-    if (!project || !activeScenario) return;
-    try {
-      const optimizedNodes = ElectricalEngine.optimize(
-        activeScenario.id, 
-        activeScenario.nodes, 
-        activeScenario.params, 
-        project.cables, 
-        project.ipTypes
-      );
-      handleUpdateNodes(optimizedNodes);
-    } catch (err) {
-      showToast("Erro durante auto-dimensionamento.", "error");
-    }
-  };
-
-  const handleForceRecalculate = async () => {
-    setRecalcTrigger(prev => prev + 1);
-    showToast("Sincronizando motor de cálculo...", "info");
-  };
-
   if (!currentUser) {
     return <Login onLogin={setCurrentUser} />;
   }
 
-  if (!project) {
+  if (!pm.project) {
     return (
       <ProjectHub 
-        projects={savedProjects}
-        onSelect={(id) => { 
-          setAllResults({}); 
-          setCurrentProjectId(id); 
-          setActiveView('dashboard'); 
-        }}
-        onCreate={(name, sob, pe, lat, lng) => {
-          const n = createTemplateProject(name, sob, pe, lat, lng);
-          setSavedProjects(p => ({...p, [n.id]: n}));
-          setAllResults({});
-          setCurrentProjectId(n.id);
-          setActiveView('dashboard');
-          showToast("Estudo iniciado com sucesso!");
-        }}
+        projects={pm.savedProjects}
+        onSelect={(id) => { pm.setCurrentProjectId(id); pm.setActiveView('dashboard'); }}
+        onCreate={pm.createProject}
         onUpdate={(id, name, sob, pe, lat, lng) => {
-          setSavedProjects(prev => ({
-            ...prev,
-            [id]: {
-              ...prev[id],
-              name: name,
-              updatedAt: new Date().toISOString(),
-              metadata: {
-                ...prev[id].metadata,
-                sob: sob,
-                electricPoint: pe,
-                lat: lat,
-                lng: lng
-              }
-            }
-          }));
+          pm.updateProject({ name, metadata: { ...pm.savedProjects[id].metadata, sob, electricPoint: pe, lat, lng } });
           showToast("Metadados atualizados.");
         }}
-        onDelete={(id) => {
-          setSavedProjects(p => { const {[id]: _, ...rest} = p; return rest; });
-          showToast("Projeto excluído.");
-        }}
-        onDuplicate={(id) => {
-          const source = savedProjects[id];
-          const clone = {
-            ...JSON.parse(JSON.stringify(source)), 
-            id: 'PRJ-'+Date.now(), 
-            name: source.name + ' (Cópia)',
-            updatedAt: new Date().toISOString()
-          };
-          setSavedProjects(p => ({...p, [clone.id]: clone}));
-          showToast("Projeto duplicado!");
-        }}
+        onDelete={pm.deleteProject}
+        onDuplicate={pm.duplicateProject}
         user={currentUser}
-        onLogout={() => {
-           setCurrentUser(null);
-           showToast("Sessão encerrada.");
-        }}
-        onBilling={() => setActiveView('billing')}
+        onLogout={() => setCurrentUser(null)}
+        onBilling={() => pm.setActiveView('billing')}
       />
     );
   }
 
-  if (activeView === 'billing') {
+  if (pm.activeView === 'billing') {
       return (
           <div className="p-8">
-              <button onClick={() => setActiveView('dashboard')} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all">← Voltar</button>
+              <button onClick={() => pm.setActiveView('dashboard')} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all">← Voltar</button>
               <Billing user={currentUser} onUpdatePlan={(plan) => {
                 setCurrentUser({...currentUser, plan});
                 showToast(`Upgrade para ${plan} realizado!`, "success");
@@ -377,93 +68,66 @@ const App: React.FC = () => {
       );
   }
 
-  const renderLoadingState = () => (
-    <div className="flex flex-col items-center justify-center h-full gap-6 animate-in fade-in py-32">
-      <div className="relative">
-        <div className="w-20 h-20 bg-blue-100/50 backdrop-blur-md rounded-full border-4 border-blue-500/20 border-t-blue-600 animate-spin"></div>
-        <div className="absolute inset-0 flex items-center justify-center text-blue-600 font-black text-xs uppercase">BT</div>
-      </div>
-      <div className="text-center">
-        <p className="text-xs font-black text-blue-600 uppercase tracking-widest">Sincronizando Engenharia</p>
-        <p className="text-[10px] text-gray-400 font-bold mt-2 uppercase tracking-tight">Resolvendo Fluxo de Carga Theseus 3.1...</p>
-      </div>
-    </div>
-  );
-
   return (
     <Layout 
-      activeView={activeView} setActiveView={setActiveView}
-      project={project}
+      activeView={pm.activeView} setActiveView={pm.setActiveView}
+      project={pm.project}
       user={currentUser}
-      onGoToHub={() => { setCurrentProjectId(null); setAllResults({}); }}
-      onSwitchScenario={(id) => updateProject({ activeScenarioId: id })}
-      onCloneScenario={handleCloneScenario}
-      onDeleteScenario={handleDeleteScenario}
-      onLogout={() => {
-        setCurrentUser(null);
-        showToast("Sessão encerrada.");
-      }}
+      onGoToHub={() => pm.setCurrentProjectId(null)}
+      onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })}
+      onCloneScenario={pm.cloneScenario}
+      onDeleteScenario={pm.deleteScenario}
+      onLogout={() => setCurrentUser(null)}
     >
-      {!activeResult && activeView !== 'settings' ? renderLoadingState() : (
+      {!pm.activeResult && pm.activeView !== 'settings' ? (
+        <div className="flex flex-col items-center justify-center h-full py-32"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div></div>
+      ) : (
         <>
-          {activeView === 'dashboard' && (
+          {pm.activeView === 'dashboard' && (
             <Dashboard 
-              project={project} 
-              result={activeResult!} 
-              isCalculating={isCalculating}
-              setActiveView={setActiveView} 
-              onUpdateMetadata={(metadata) => updateProject({ metadata })} 
+              project={pm.project} result={pm.activeResult!} isCalculating={pm.isCalculating}
+              setActiveView={pm.setActiveView} onUpdateMetadata={(m) => pm.updateProject({ metadata: m })} 
             />
           )}
-          {activeView === 'editor' && (
+          {pm.activeView === 'editor' && (
             <ProjectEditor 
-              project={{...project, ...activeScenario!}} 
-              onUpdate={handleUpdateNodes} 
-              onUpdateParams={handleUpdateParams} 
-              onOptimize={handleOptimizeActive}
-              onRecalculate={handleForceRecalculate}
-              calculatedNodes={activeResult!.nodes}
-              result={activeResult!}
+              project={{...pm.project, ...pm.activeScenario!}} 
+              onUpdate={(n) => pm.updateActiveScenario({ nodes: n })} 
+              onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} 
+              onOptimize={pm.optimizeActive}
+              onRecalculate={pm.forceRecalculate}
+              calculatedNodes={pm.activeResult!.nodes}
+              result={pm.activeResult!}
             />
           )}
-          {activeView === 'gis' && (
+          {pm.activeView === 'gis' && (
             <GISView 
-              project={project} 
-              result={activeResult!} 
-              onUpdateNodes={handleUpdateNodes} 
+              project={pm.project} result={pm.activeResult!} 
+              onUpdateNodes={(n) => pm.updateActiveScenario({ nodes: n })} 
             />
           )}
-          {activeView === 'solar' && (
+          {pm.activeView === 'solar' && (
             <SolarDashboard 
-              project={project} 
-              result={activeResult!} 
-              onUpdateParams={handleUpdateParams}
+              project={pm.project} result={pm.activeResult!} 
+              onUpdateParams={(p) => pm.updateActiveScenario({ params: p })}
             />
           )}
-          {activeView === 'sustainability' && (
-            <SustainabilityDashboard 
-              project={project} 
-              result={activeResult!} 
-            />
-          )}
-          {activeView === 'comparison' && (
+          {pm.activeView === 'sustainability' && <SustainabilityDashboard project={pm.project} result={pm.activeResult!} />}
+          {pm.activeView === 'comparison' && (
             <ComparisonView 
-              project={project} 
-              results={allResults} 
-              setActiveView={setActiveView} 
-              onSwitchScenario={(id) => updateProject({ activeScenarioId: id })} 
-              onCloneScenario={handleCloneScenario}
-              onCreateEmptyScenario={handleCreateEmptyScenario}
+              project={pm.project} results={pm.allResults} setActiveView={pm.setActiveView} 
+              onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })} 
+              onCloneScenario={pm.cloneScenario} onCreateEmptyScenario={pm.createEmptyScenario}
             />
           )}
-          {activeView === 'ai-chat' && <Chatbot project={project} result={activeResult!} />}
-          {activeView === 'report' && <ProjectReport project={project} activeScenario={activeScenario!} result={activeResult!} />}
-          {activeView === 'settings' && (
+          {pm.activeView === 'ai-chat' && <Chatbot project={pm.project} result={pm.activeResult!} />}
+          {pm.activeView === 'report' && <ProjectReport project={pm.project} activeScenario={pm.activeScenario!} result={pm.activeResult!} />}
+          {pm.activeView === 'settings' && (
             <Settings 
-              project={project} 
-              onUpdateCables={(cables) => updateProject({ cables })} 
-              onUpdateIpTypes={(ipTypes) => updateProject({ ipTypes })} 
-              onUpdateReportConfig={(reportConfig) => updateProject({ reportConfig })} 
+              project={pm.project} 
+              onUpdateCables={(c) => pm.updateProject({ cables: c })} 
+              onUpdateIpTypes={(i) => pm.updateProject({ ipTypes: i })} 
+              onUpdateReportConfig={(r) => pm.updateProject({ reportConfig: r })} 
             />
           )}
         </>
