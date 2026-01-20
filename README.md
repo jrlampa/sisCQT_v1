@@ -1,11 +1,41 @@
-<div align="center">
+# sisCQT Enterprise AI — Engenharia de Redes BT
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+O **sisCQT Enterprise AI** é uma plataforma avançada de engenharia elétrica dedicada ao projeto, simulação e dimensionamento de redes de distribuição de Baixa Tensão (BT). Desenvolvido com uma interface **Glassmorphism Light**, o sistema une precisão normativa com uma experiência de usuário fluida e moderna.
 
-  <h1>Built with AI Studio</h2>
+## 🚀 Funcionalidades Principais
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+- **Hub de Projetos**: Gestão centralizada de estudos de rede com suporte a clonagem, edição de metadados geotécnicos (SOB, Ponto Elétrico, Coordenadas) e controle de versões.
+- **Motor de Cálculo Theseus 3.1**: Algoritmo proprietário para cálculo de fluxo de carga, queda de tensão acumulada (CQT) e ocupação de transformadores baseado nas normas PRODIST e ABNT.
+- **Editor de Topologia em Cascata**: Interface dinâmica para construção de redes, permitindo o controle individual de trechos, tipos de condutores e cargas (Residenciais, Especiais e IP).
+- **Matriz de Comparação de Cenários**: Análise técnica lado a lado para validação de alternativas (ex: "Rede Atual" vs "Projeto de Reforço").
+- **Theseus AI (Cognitivo)**: Assistente de engenharia integrado que analisa pontos críticos de sobrecarga e sugere otimizações baseadas em melhor custo-benefício.
+- **Diagrama Unifilar Interativo**: Visualização gráfica da árvore de rede com indicadores de saúde térmica e níveis de tensão em tempo real.
+- **Memorial Descritivo Automatizado**: Geração de relatório técnico completo, pronto para impressão, com justificativas, quadros de cargas e resumo de materiais.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 🛠️ Stack Técnica
 
-</div>
+- **Frontend**: React 19 com TypeScript.
+- **Estilização**: Tailwind CSS com efeitos de Glassmorphism (blur, transparência e camadas).
+- **Gráficos**: Recharts para diagnóstico de carregamento.
+- **Motor Cognitivo**: Gemini API (Integration via `GeminiService`).
+- **Engenharia**: Lógica de cálculo em TypeScript (ElectricalEngine) com suporte a fatores de diversidade (DMDI).
+
+## 📐 Metodologia de Cálculo
+
+A plataforma utiliza o método dos momentos de carga para determinação da queda de tensão:
+$$CQT = \sum (kVA \cdot L \cdot Coef_{cabo} \cdot 0.5)$$
+
+- **Normativas suportadas**: PRODIST (Aneel) e ABNT.
+- **Perfis de Carga**: Urbano Padrão, Rural e Massivos (configuráveis por cenário).
+- **DMDI**: Fator de diversidade dinâmico baseado no número de consumidores e classe de carga.
+
+## 📁 Estrutura do Projeto
+
+- `/components`: Interface modular (Dashboard, Editor, Hub, etc).
+- `/services`: Core de engenharia e integração com o motor de IA.
+- `types.ts`: Definições rigorosas de contratos de dados.
+- `constants.ts`: Catálogo técnico de cabos, tabelas DMDI e perfis normativos.
+
+---
+**IM3 Brasil — Engenharia Digital**  
+*Transformando dados de rede em decisões de alta performance.*
