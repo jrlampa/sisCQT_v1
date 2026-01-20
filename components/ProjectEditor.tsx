@@ -31,7 +31,7 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
 
   const [localMeters, setLocalMeters] = useState(node.meters.toString());
   const [localPointKva, setLocalPointKva] = useState(node.loads.pointKva.toString());
-  const [localSolarKwp, setLocalSolarKwp] = useState((node.loads.solarKwp || 0).toString());
+  const [localSolarKva, setLocalSolarKva] = useState((node.loads.solarKva || 0).toString());
 
   const handleMetersBlur = () => {
     const val = parseFloat(localMeters.replace(',', '.'));
@@ -44,8 +44,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
   };
 
   const handleSolarBlur = () => {
-    const val = parseFloat(localSolarKwp.replace(',', '.'));
-    onUpdateField(node.id, 'solarKwp', isNaN(val) ? 0 : val);
+    const val = parseFloat(localSolarKva.replace(',', '.'));
+    onUpdateField(node.id, 'solarKva', isNaN(val) ? 0 : val);
   };
 
   const handleIntChange = (field: string, val: string) => {
@@ -129,7 +129,7 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         )}
       </td>
 
-      {/* Cargas Residenciais */}
+      {/* Cargas Diversificadas */}
       <td className="px-6 py-6 bg-blue-50/5">
         <div className="flex gap-1.5 justify-center">
           {[{k: 'mono', l: 'M'}, {k: 'bi', l: 'B'}, {k: 'tri', l: 'T'}].map(item => (
@@ -147,17 +147,23 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         </div>
       </td>
 
-      {/* Geração Solar (kWp) */}
+      {/* Geração Solar (kVA) */}
       <td className="px-6 py-6 bg-yellow-50/5">
-        <div className="flex flex-col items-center gap-0.5">
-           <input 
-            className="w-14 h-8 rounded-lg bg-white/90 border border-yellow-100 text-center text-[10px] font-black text-orange-600 outline-none" 
-            type="text" 
-            value={localSolarKwp} 
-            onChange={e => setLocalSolarKwp(e.target.value)}
-            onBlur={handleSolarBlur}
-           />
-           <span className="text-[7px] font-black text-orange-400 uppercase tracking-widest">kWp Solar</span>
+        <div className="flex gap-1.5 justify-center items-center">
+          <div className="flex flex-col items-center gap-0.5">
+             <input className="w-8 h-8 rounded-lg bg-white/90 border border-yellow-100 text-center text-[10px] font-black text-orange-600 outline-none" type="text" value={node.loads.solarQty} onChange={e => handleIntChange('solarQty', e.target.value)} />
+             <span className="text-[7px] font-black text-orange-400">Q</span>
+          </div>
+          <div className="flex flex-col items-center gap-0.5">
+            <input 
+              className="w-14 h-8 rounded-lg bg-white/90 border border-yellow-100 text-center text-[10px] font-black text-orange-600 outline-none" 
+              type="text" 
+              value={localSolarKva} 
+              onChange={e => setLocalSolarKva(e.target.value)}
+              onBlur={handleSolarBlur}
+            />
+            <span className="text-[7px] font-black text-orange-400 uppercase">kVA Solar</span>
+          </div>
         </div>
       </td>
 
@@ -293,7 +299,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
       parentId: lastNode?.id || 'TRAFO',
       meters: 30,
       cable: project.nodes[0]?.cable || Object.keys(project.cables)[0],
-      loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 }
+      loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 }
     };
 
     if (!isNaN(latNum) && !isNaN(lngNum)) {
@@ -399,34 +405,62 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
 
       {showTopology && <div className="animate-in slide-in-from-top-4 duration-500"><UnifilarDiagram nodes={project.nodes} result={result!} cables={project.cables} /></div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6 bg-white/60 p-8 rounded-[32px] border border-white/80 shadow-sm">
-        <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Trafo (kVA)</label>
-          <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.trafoKva} onChange={(e) => onUpdateParams({...project.params, trafoKva: Number(e.target.value)})}>
-            {[15, 30, 45, 75, 112.5, 150, 225, 300].map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
+      {/* Bloco de Gestão do Transformador - Layout Conforme Sketch */}
+      <div className="bg-white/60 p-8 rounded-[32px] border border-white/80 shadow-sm">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
+          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Trafo (kVA)</label>
+            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.trafoKva} onChange={(e) => onUpdateParams({...project.params, trafoKva: Number(e.target.value)})}>
+              {[15, 30, 45, 75, 112.5, 150, 225, 300].map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Normativa</label>
+            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.normativeTable} onChange={(e) => onUpdateParams({...project.params, normativeTable: e.target.value})}>
+              {Object.keys(DMDI_TABLES).map(norm => <option key={norm} value={norm}>{norm}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Perfil</label>
+            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.profile} onChange={(e) => onUpdateParams({...project.params, profile: e.target.value})}>
+              {Object.keys(PROFILES).map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Classe DMDI</label>
+            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.manualClass} onChange={(e) => onUpdateParams({...project.params, manualClass: e.target.value as any})}>
+              <option value="A">Classe A</option><option value="B">Classe B</option><option value="C">Classe C</option><option value="D">Classe D</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5 justify-end">
+             <button 
+                onClick={() => onUpdateParams({...project.params, includeGdInQt: !project.params.includeGdInQt})}
+                className={`px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border-2 ${project.params.includeGdInQt ? 'bg-orange-500 border-orange-600 text-white shadow-lg animate-pulse' : 'bg-white border-blue-100 text-blue-400 hover:border-blue-400 hover:text-blue-600'}`}
+             >
+                {project.params.includeGdInQt ? 'GD no Cálculo: ATIVO' : 'GD no Cálculo: INATIVO'}
+             </button>
+          </div>
         </div>
-        <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Normativa</label>
-          <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.normativeTable} onChange={(e) => onUpdateParams({...project.params, normativeTable: e.target.value})}>
-            {Object.keys(DMDI_TABLES).map(norm => <option key={norm} value={norm}>{norm}</option>)}
-          </select>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8 border-t border-blue-50">
+          <div className="flex flex-col items-center md:items-start">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ativos Conectados</span>
+            <span className="text-[28px] font-black text-[#004a80] leading-none mt-1">{project.nodes.length} <span className="text-xs uppercase text-blue-300">unid</span></span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">DMDI Diversificada</span>
+            <div className="flex flex-col items-center">
+                <span className="text-[28px] font-black text-blue-600 leading-none mt-1">{(result?.kpis.diversifiedLoad || 0).toFixed(2)} <span className="text-xs uppercase text-blue-300">kVA</span></span>
+                <span className="text-[9px] font-black text-blue-300 uppercase mt-1 tracking-widest">Degrau: {(result?.kpis.globalDmdiFactor || 0).toFixed(2)} kVA/un</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-center md:items-end">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ocupação do Trafo</span>
+            <span className={`text-[28px] font-black leading-none mt-1 ${(result?.kpis.trafoOccupation || 0) > 100 ? 'text-red-600 animate-pulse' : 'text-[#004a80]'}`}>{(result?.kpis.trafoOccupation || 0).toFixed(2)} %</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Perfil</label>
-          <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.profile} onChange={(e) => onUpdateParams({...project.params, profile: e.target.value})}>
-            {Object.keys(PROFILES).map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Classe DMDI</label>
-          <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.manualClass} onChange={(e) => onUpdateParams({...project.params, manualClass: e.target.value as any})}>
-            <option value="A">Classe A</option><option value="B">Classe B</option><option value="C">Classe C</option><option value="D">Classe D</option>
-          </select>
-        </div>
-        <div className="flex items-center justify-end px-4"><div className="text-right"><span className="text-[18px] font-black text-[#004a80] block leading-none">{project.nodes.length}</span><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Ativos</span></div></div>
       </div>
 
       <div className="overflow-x-auto bg-white/40 rounded-[32px] border border-white/50 shadow-2xl relative">
         <table className="w-full text-left border-collapse min-w-[1200px]">
           <thead className="bg-[#f8faff]/50 text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-white/20">
-            <tr><th className="px-6 py-6">ID PONTO</th><th className="px-6 py-6 text-center">MONTANTE</th><th className="px-4 py-6 text-center">METROS</th><th className="px-6 py-6">CONDUTOR</th><th className="px-6 py-6 text-center bg-blue-50/10">RESIDENCIAL</th><th className="px-6 py-6 text-center bg-yellow-50/10">SOLAR</th><th className="px-6 py-6 text-center bg-indigo-50/10">CARGA ESP.</th><th className="px-6 py-6 text-center bg-orange-50/10">IP PUB.</th><th className="px-6 py-6 text-center text-[#004a80]">CARGA (A)</th><th className="px-6 py-6 text-center">CQT %</th><th className="px-4 py-6"></th></tr>
+            <tr><th className="px-6 py-6">ID PONTO</th><th className="px-6 py-6 text-center">MONTANTE</th><th className="px-4 py-6 text-center">METROS</th><th className="px-6 py-6">CONDUTOR</th><th className="px-6 py-6 text-center bg-blue-50/10">DIVERSIFICADOS</th><th className="px-6 py-6 text-center bg-yellow-50/10">SOLAR</th><th className="px-6 py-6 text-center bg-indigo-50/10">CARGA ESP.</th><th className="px-6 py-6 text-center bg-orange-50/10">IP PUB.</th><th className="px-6 py-6 text-center text-[#004a80]">CARGA (A)</th><th className="px-6 py-6 text-center">CQT %</th><th className="px-4 py-6"></th></tr>
           </thead>
           <tbody className="divide-y divide-white/10">
             {paginatedNodes.map((node) => (

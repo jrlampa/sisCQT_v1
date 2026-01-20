@@ -22,6 +22,7 @@ const GISView: React.FC<GISViewProps> = ({ project, result, onUpdateNodes }) => 
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  // FIX: Initialize lastMousePos with 0,0 since 'e' is not available during component initialization
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const mapRef = useRef<SVGSVGElement>(null);
 
@@ -87,8 +88,7 @@ const GISView: React.FC<GISViewProps> = ({ project, result, onUpdateNodes }) => 
       parentId: parentId,
       meters: 30,
       cable: nodes[0]?.cable || Object.keys(project.cables)[0],
-      // FIX: Added missing solarKwp property to loads
-      loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 },
+      loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
       lat: coords.lat,
       lng: coords.lng,
       utm: GisService.toUtm(coords.lat, coords.lng)

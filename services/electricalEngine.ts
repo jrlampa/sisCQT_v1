@@ -5,7 +5,7 @@ import { DMDI_TABLES, PROFILES } from '../constants.ts';
 interface TreeNode extends NetworkNode {
   children: TreeNode[];
   accumulatedKva: number; 
-  accumulatedSolarKwp: number;
+  accumulatedSolarKva: number;
 }
 
 export class ElectricalEngine {
@@ -27,7 +27,7 @@ export class ElectricalEngine {
     
     const nodeMap = new Map<string, TreeNode>();
     processedNodes.forEach(node => {
-      nodeMap.set(node.id, { ...node, children: [], accumulatedKva: 0, accumulatedSolarKwp: 0 });
+      nodeMap.set(node.id, { ...node, children: [], accumulatedKva: 0, accumulatedSolarKva: 0 });
     });
 
     const trafoNode = nodeMap.get('TRAFO');
@@ -51,33 +51,37 @@ export class ElectricalEngine {
     let totalPointKva = 0;
     let totalIpKva = 0;
     let totalJouleLossWatts = 0;
-    let totalInstalledKwp = 0;
+    let totalInstalledKva = 0;
 
     const getNodeLoadInfo = (node: NetworkNode) => {
       const residencesQty = node.loads.mono + node.loads.bi + node.loads.tri;
       const demandKva = residencesQty * globalDmdiFactor;
       const ipKva = (node.loads.ipQty * (ipCatalog[node.loads.ipType] || 0));
       const pointKva = node.loads.pointKva; 
-      const solarKwp = node.loads.solarKwp || 0;
+      const solarKva = node.loads.solarKva || 0;
       
       totalDiversifiedKva += demandKva;
       totalIpKva += ipKva;
       totalPointKva += pointKva;
-      totalInstalledKwp += solarKwp;
+      totalInstalledKva += solarKva;
 
-      return { kva: demandKva + ipKva + pointKva, solar: solarKwp };
+      // Se incluir impacto GD no QT, subtraímos parte da GD da carga nominal (pico noturno vs geração diurna)
+      // Usamos 50% da GD como contribuição conservadora para redução de QT se o botão estiver ativo
+      const qtLoadKva = params.includeGdInQt ? (demandKva + ipKva + pointKva - (solarKva * 0.5)) : (demandKva + ipKva + pointKva);
+
+      return { kva: qtLoadKva, solar: solarKva, rawKva: demandKva + ipKva + pointKva };
     };
 
-    const calculateKvaFlow = (node: TreeNode): { kva: number, solar: number } => {
+    const calculateKvaFlow = (node: TreeNode): { kva: number, solar: number, rawKva: number } => {
       const myInfo = getNodeLoadInfo(node);
       const childrenFlow = node.children.reduce((acc, child) => {
         const res = calculateKvaFlow(child);
-        return { kva: acc.kva + res.kva, solar: acc.solar + res.solar };
-      }, { kva: 0, solar: 0 });
+        return { kva: acc.kva + res.kva, solar: acc.solar + res.solar, rawKva: acc.rawKva + res.rawKva };
+      }, { kva: 0, solar: 0, rawKva: 0 });
       
       node.accumulatedKva = myInfo.kva + childrenFlow.kva;
-      node.accumulatedSolarKwp = myInfo.solar + childrenFlow.solar;
-      return { kva: node.accumulatedKva, solar: node.accumulatedSolarKwp };
+      node.accumulatedSolarKva = myInfo.solar + childrenFlow.solar;
+      return { kva: node.accumulatedKva, solar: node.accumulatedSolarKva, rawKva: myInfo.rawKva + childrenFlow.rawKva };
     };
 
     if (trafoNode) calculateKvaFlow(trafoNode);
@@ -96,7 +100,7 @@ export class ElectricalEngine {
         node.jouleLossWatts = 0;
         node.solarVoltageRise = 0;
       } else {
-        // Cenário 1: Pico de Consumo (Noite)
+        // Cenário 1: Pico de Consumo (Considerando botão de GD se ativo)
         const nightAmps = node.accumulatedKva / (1.732 * 0.380);
         if (nightAmps > cableData.ampacity && cableData.ampacity > 0) {
           warnings.push(`🔥 Sobrecarga em ${node.id}: ${nightAmps.toFixed(1)}A > ${cableData.ampacity}A.`);
@@ -108,14 +112,10 @@ export class ElectricalEngine {
         node.accumulatedCqt = parentAccumulatedCqt + segmentCqt;
 
         // Cenário 2: Pico de Geração (Dia)
-        // Estimamos carga diurna = 30% da noturna e IP = 0
         const dayDemandKva = (node.accumulatedKva - (totalIpKva / processedNodes.length)) * this.DAY_LOAD_FACTOR;
-        const netDayKva = dayDemandKva - node.accumulatedSolarKwp;
+        const netDayKva = dayDemandKva - node.accumulatedSolarKva;
         const dayAmps = netDayKva / (1.732 * 0.380);
         
-        // Se netDayKva é negativo, temos fluxo reverso e elevação de tensão
-        // DeltaV ~ (P*R + Q*X)/V^2. Como P é negativo (geração), DeltaV é negativo em relação à queda (ou seja, sobe)
-        // Usamos o coeficiente simplificado de queda mas invertido
         const segmentRise = (Math.abs(Math.min(0, netDayKva)) * distHm) * cableData.coef * 0.5;
         node.solarVoltageRise = parentVoltageRise + segmentRise;
         node.netCurrentDay = dayAmps;
@@ -165,11 +165,11 @@ export class ElectricalEngine {
     };
 
     const gdImpact: GdImpactMetrics = {
-      totalInstalledKwp,
+      totalInstalledKva,
       maxVoltageRise,
       hasReverseFlow,
       reverseFlowAmps: maxReverseAmps,
-      selfConsumptionRate: totalInstalledKwp > 0 ? (Math.min(totalInstalledKwp, totalLoad * 0.4) / totalInstalledKwp) * 100 : 0
+      selfConsumptionRate: totalInstalledKva > 0 ? (Math.min(totalInstalledKva, totalLoad * 0.4) / totalInstalledKva) * 100 : 0
     };
 
     return {
@@ -211,7 +211,7 @@ export class ElectricalEngine {
           const cableInfo = cablesCatalog[node.cable];
           const isAmpacityBad = (calculated.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
           const isVoltageBad = (calculated.accumulatedCqt || 0) > profileData.cqtMax;
-          const isRiseBad = (calculated.solarVoltageRise || 0) > 5.0; // Limite PRODIST de elevação
+          const isRiseBad = (calculated.solarVoltageRise || 0) > 5.0; 
           
           if (isAmpacityBad || isVoltageBad || isRiseBad) {
             const currentIdx = sortedCables.indexOf(node.cable);
@@ -230,7 +230,6 @@ export class ElectricalEngine {
   }
 
   static runMonteCarlo(nodes: NetworkNode[], params: ProjectParams, cables: any, ips: any, iterations: number = 500): MonteCarloResult {
-    // Mantido original para brevidade, mas o calculate já lida com solar
     const results: number[] = [];
     let failureCount = 0;
     const profileData = (PROFILES as any)[params.profile] || PROFILES["Massivos"];
@@ -245,7 +244,7 @@ export class ElectricalEngine {
           bi: Math.round(n.loads.bi * (0.85 + Math.random() * 0.3)),
           tri: Math.round(n.loads.tri * (0.85 + Math.random() * 0.3)),
           pointKva: n.loads.pointKva * (0.9 + Math.random() * 0.2),
-          solarKwp: (n.loads.solarKwp || 0) * (0.95 + Math.random() * 0.1)
+          solarKva: (n.loads.solarKva || 0) * (0.95 + Math.random() * 0.1)
         }
       }));
 

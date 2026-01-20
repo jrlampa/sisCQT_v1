@@ -169,11 +169,20 @@ const ProjectReport: React.FC<ProjectReportProps> = ({ project, activeScenario, 
           <div className="mt-auto">
             {reportConfig.showSignatures && (
               <footer className="pt-12 border-t border-gray-200">
-                <div className="grid grid-cols-2 gap-12 text-center">
-                  <div><div className="w-48 h-px bg-gray-400 mx-auto mb-2"></div><p className="text-[10px] font-bold uppercase text-gray-400">Responsável Técnico (Eng.)</p></div>
-                  <div><div className="w-48 h-px bg-gray-400 mx-auto mb-2"></div><p className="text-[10px] font-bold uppercase text-gray-400">Fiscalização IM3 Brasil</p></div>
+                <div className="flex justify-center mb-10">
+                   <div className="flex flex-col items-center text-center">
+                      {/* Simulação da assinatura manuscrita */}
+                      <div className="mb-2 italic font-serif text-2xl text-blue-900 select-none opacity-80" style={{ fontFamily: 'Dancing Script, cursive' }}>
+                        Luiz Eduardo Tavares Branco
+                      </div>
+                      <div className="w-64 h-[1px] bg-gray-400 mb-3"></div>
+                      <p className="text-[11px] font-black text-gray-800 uppercase leading-tight tracking-tighter">IM3 PROJETOS E SERVICOS LTDA</p>
+                      <p className="text-[10px] font-bold text-gray-700 uppercase leading-tight">LUIZ EDUARDO TAVARES BRANCO</p>
+                      <p className="text-[9px] font-bold text-gray-500 uppercase leading-tight">ENGENHEIRO ELETRICISTA</p>
+                      <p className="text-[9px] font-black text-blue-600 uppercase leading-tight mt-1">CREA-RJ 201107040-6</p>
+                   </div>
                 </div>
-                <div className="mt-8 text-center">
+                <div className="text-center">
                   <p className="text-[8px] text-gray-300 uppercase font-bold tracking-[0.2em]">Documento gerado eletronicamente via sisCQT Enterprise AI</p>
                 </div>
               </footer>

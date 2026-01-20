@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Project, EngineResult } from '../types';
+import { Project, EngineResult, ProjectParams } from '../types';
 import { 
   LineChart, 
   Line, 
@@ -17,10 +17,12 @@ import {
 interface SolarDashboardProps {
   project: Project;
   result: EngineResult;
+  onUpdateParams?: (params: ProjectParams) => void;
 }
 
-const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result }) => {
+const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result, onUpdateParams }) => {
   const { gdImpact } = result;
+  const activeScenario = project.scenarios.find(s => s.id === project.activeScenarioId)!;
 
   // Gerar perfil de tensão Trafo -> Fim de Linha (Pior caso)
   const voltageProfileData = result.nodes
@@ -31,11 +33,13 @@ const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result }) => {
       dayVoltage: 100 + (n.solarVoltageRise || 0),
     }));
 
+  const totalClientsGD = result.nodes.reduce((acc, n) => acc + (n.loads.solarQty || 0), 0);
+
   const stats = [
     { 
       label: 'Potência Solar Total', 
-      value: `${gdImpact.totalInstalledKwp.toFixed(1)} kWp`, 
-      sub: `${result.nodes.filter(n => (n.loads.solarKwp || 0) > 0).length} Usinas instaladas`,
+      value: `${gdImpact.totalInstalledKva.toFixed(1)} kVA`, 
+      sub: `${totalClientsGD} Clientes com GD`,
       icon: '☀️',
       color: 'text-orange-600'
     },
@@ -68,11 +72,19 @@ const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result }) => {
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 text-3xl shadow-lg border border-orange-200">☀️</div>
           <div>
-            <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase leading-none">Photovoltaic Impact Studio</h2>
+            <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase leading-none">Estudo de Impacto GD</h2>
             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Análise de Geração Distribuída e Fluxo Reverso</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-4">
+           {onUpdateParams && (
+             <button 
+                onClick={() => onUpdateParams({...activeScenario.params, includeGdInQt: !activeScenario.params.includeGdInQt})}
+                className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border-2 ${activeScenario.params.includeGdInQt ? 'bg-orange-500 border-orange-600 text-white shadow-lg animate-pulse' : 'bg-white border-blue-100 text-blue-400'}`}
+             >
+                {activeScenario.params.includeGdInQt ? 'Impacto na QT: ATIVO' : 'Impacto na QT: INATIVO'}
+             </button>
+           )}
            <div className="glass px-4 py-2 rounded-xl border border-orange-100 flex flex-col items-center">
              <span className="text-[9px] font-black text-orange-600 uppercase">Status GD</span>
              <span className="text-xs font-black text-gray-700">{gdImpact.hasReverseFlow ? 'REVERSO ATIVO' : 'CONJUNTO SAUDÁVEL'}</span>
@@ -131,7 +143,7 @@ const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result }) => {
                 <p className="text-[11px] text-gray-600 leading-relaxed font-medium">
                   {gdImpact.maxVoltageRise > 5 
                     ? `Atenção Crítica: O cenário de geração distribuída indica uma elevação de tensão de ${gdImpact.maxVoltageRise.toFixed(2)}%, o que ultrapassa o limite normativo. Recomenda-se o reforço dos condutores nos trechos iniciais ou a reconfiguração dos inversores para modo de absorção de reativos (Q(V)).`
-                    : `Estabilidade Garantida: A rede possui robustez suficiente para absorver os ${gdImpact.totalInstalledKwp.toFixed(1)} kWp instalados sem causar sobretensões prejudiciais aos consumidores vizinhos.`
+                    : `Estabilidade Garantida: A rede possui robustez suficiente para absorver os ${gdImpact.totalInstalledKva.toFixed(1)} kVA instalados sem causar sobretensões prejudiciais aos consumidores vizinhos.`
                   }
                 </p>
               </div>

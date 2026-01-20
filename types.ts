@@ -16,7 +16,8 @@ export interface LoadData {
   pointKva: number;
   ipType: string;
   ipQty: number;
-  solarKwp: number; // Capacidade Solar instalada em kWp
+  solarKva: number; // Capacidade Solar instalada em kVA
+  solarQty: number; // Quantidade de clientes com GD no ponto
 }
 
 export interface UtmCoords {
@@ -53,7 +54,7 @@ export interface SustainabilityMetrics {
 }
 
 export interface GdImpactMetrics {
-  totalInstalledKwp: number;
+  totalInstalledKva: number;
   maxVoltageRise: number;
   hasReverseFlow: boolean;
   reverseFlowAmps: number;
@@ -94,6 +95,7 @@ export interface ProjectParams {
   classType: 'Automatic' | 'Manual';
   manualClass: 'A' | 'B' | 'C' | 'D';
   normativeTable: string;
+  includeGdInQt?: boolean; // Se true, subtrai GD da carga no pico de CQT
 }
 
 export interface Scenario {

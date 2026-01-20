@@ -48,9 +48,9 @@ const createTemplateProject = (name: string, sob: string, pe: string, lat: numbe
       id: 'SCN-1',
       name: 'ATUAL',
       updatedAt: new Date().toISOString(),
-      params: { trafoKva: 75, profile: 'Massivos', classType: 'Automatic', manualClass: 'B', normativeTable: 'PRODIST' },
+      params: { trafoKva: 75, profile: 'Massivos', classType: 'Automatic', manualClass: 'B', normativeTable: 'PRODIST', includeGdInQt: false },
       nodes: [
-        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 2, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 } },
+        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 2, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } },
       ]
     }
   ]
@@ -87,27 +87,27 @@ const createSampleProject = (): Project => {
         id: 'SCN-1',
         name: 'CONFIGURAÇÃO ATUAL',
         updatedAt: new Date().toISOString(),
-        params: { trafoKva: 112.5, profile: 'Massivos', classType: 'Automatic', manualClass: 'C', normativeTable: 'PRODIST' },
+        params: { trafoKva: 112.5, profile: 'Massivos', classType: 'Automatic', manualClass: 'C', normativeTable: 'PRODIST', includeGdInQt: false },
         nodes: [
           { 
             id: 'TRAFO', parentId: '', meters: 0, cable: cableList[4], 
             lat: baseLat, lng: baseLng, utm: GisService.toUtm(baseLat, baseLng),
-            loads: { mono: 5, bi: 1, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 } 
+            loads: { mono: 5, bi: 1, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } 
           },
           { 
             id: 'P1', parentId: 'TRAFO', meters: 35, cable: cableList[2], 
             lat: baseLat + 0.0003, lng: baseLng + 0.0002, utm: GisService.toUtm(baseLat + 0.0003, baseLng + 0.0002),
-            loads: { mono: 12, bi: 2, tri: 1, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKwp: 0 } 
+            loads: { mono: 12, bi: 2, tri: 1, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKva: 0, solarQty: 0 } 
           },
           { 
             id: 'P2', parentId: 'P1', meters: 42, cable: cableList[1], 
             lat: baseLat + 0.0006, lng: baseLng + 0.0005, utm: GisService.toUtm(baseLat + 0.0006, baseLng + 0.0005),
-            loads: { mono: 8, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKwp: 12.5 } 
+            loads: { mono: 8, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'IP 150W', ipQty: 1, solarKva: 12.5, solarQty: 1 } 
           },
           { 
             id: 'P3', parentId: 'P2', meters: 38, cable: cableList[0], 
             lat: baseLat + 0.0009, lng: baseLng + 0.0008, utm: GisService.toUtm(baseLat + 0.0009, baseLng + 0.0008),
-            loads: { mono: 4, bi: 1, tri: 0, pointQty: 1, pointKva: 5.5, ipType: 'IP 70W', ipQty: 1, solarKwp: 0 } 
+            loads: { mono: 4, bi: 1, tri: 0, pointQty: 1, pointKva: 5.5, ipType: 'IP 70W', ipQty: 1, solarKva: 0, solarQty: 0 } 
           }
         ]
       }
@@ -256,10 +256,11 @@ const App: React.FC = () => {
         profile: 'Massivos', 
         classType: 'Automatic', 
         manualClass: 'B', 
-        normativeTable: 'PRODIST' 
+        normativeTable: 'PRODIST',
+        includeGdInQt: false
       },
       nodes: [
-        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKwp: 0 } },
+        { id: 'TRAFO', parentId: '', meters: 0, cable: Object.keys(DEFAULT_CABLES)[4], loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } },
       ]
     };
     updateProject({ 
@@ -436,6 +437,7 @@ const App: React.FC = () => {
             <SolarDashboard 
               project={project} 
               result={activeResult!} 
+              onUpdateParams={handleUpdateParams}
             />
           )}
           {activeView === 'sustainability' && (
