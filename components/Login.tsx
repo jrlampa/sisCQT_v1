@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { ApiService } from '../services/apiService';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -32,48 +33,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isCorporate, setIsCorporate] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setIsCorporate(email.toLowerCase().endsWith('@im3brasil.com.br'));
-  }, [email]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
     
-    // Simulação de delay de rede
-    setTimeout(() => {
-      const lowerEmail = email.toLowerCase().trim();
-      const pwd = password.trim();
-      
-      // Validação obrigatória de senha (evitar login vazio)
-      if (pwd.length < 6) {
-        setError('A senha deve ter pelo menos 6 caracteres.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Validação específica para o usuário de teste
-      if (lowerEmail === 'teste@im3brasil.com.br' && pwd !== 'teste123') {
-        setError('Senha de teste incorreta.');
-        setIsLoading(false);
-        return;
-      }
-
-      const isAdmin = lowerEmail === 'jonatas.lampa@im3brasil.com.br';
-      
-      onLogin({
-        id: 'user-' + Date.now(),
-        name: isAdmin ? 'Jonatas Lampa' : lowerEmail.split('@')[0].replace('.', ' '),
-        email: lowerEmail,
-        plan: isCorporate ? 'Enterprise' : 'Free',
-        role: isAdmin ? 'admin' : 'user'
-      });
+    try {
+      const user = await ApiService.login(email.trim(), password.trim());
+      onLogin(user);
+    } catch (err: any) {
+      setError(err.message === 'API Error: Unauthorized' ? 'Credenciais inválidas' : 'Falha na conexão com o servidor');
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const supportEmail = "jonatas.lampa@im3brasil.com.br";

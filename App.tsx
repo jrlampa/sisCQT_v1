@@ -17,8 +17,7 @@ import SolarDashboard from './components/SolarDashboard.tsx';
 import { User, Project } from './types.ts';
 import { useToast } from './context/ToastContext.tsx';
 import { useProjectManagement } from './hooks/useProjectManagement.ts';
-
-const AUTH_KEY = 'sisqat_user_session';
+import { ApiService } from './services/apiService';
 
 const ProjectRouteWrapper = ({ pm, user, onLogout }: { pm: any, user: User, onLogout: () => void }) => {
   const { projectId } = useParams();
@@ -27,13 +26,11 @@ const ProjectRouteWrapper = ({ pm, user, onLogout }: { pm: any, user: User, onLo
   useEffect(() => {
     if (projectId && pm.savedProjects[projectId]) {
       pm.setCurrentProjectId(projectId);
-    } else if (projectId) {
+    } else if (projectId && Object.keys(pm.savedProjects).length > 0) {
       navigate('/hub');
     }
-  }, [projectId, pm.savedProjects, navigate]);
+  }, [projectId, pm.savedProjects, navigate, pm]);
 
-  // Se o projeto ainda não foi carregado no estado, mas o ID é válido, mostramos loading.
-  // Se o ID na URL não bate com o ID carregado, esperamos o efeito acima sincronizar.
   if (!pm.project || pm.project.id !== projectId) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-[#f0f4ff]">
@@ -62,30 +59,52 @@ const App: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    try {
-      const saved = sessionStorage.getItem(AUTH_KEY);
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   const pm = useProjectManagement();
 
+  // Verifica autenticação no mount
   useEffect(() => {
-    if (currentUser) sessionStorage.setItem(AUTH_KEY, JSON.stringify(currentUser));
-    else sessionStorage.removeItem(AUTH_KEY);
-  }, [currentUser]);
+    ApiService.me()
+      .then(user => setCurrentUser(user))
+      .catch(() => setCurrentUser(null))
+      .finally(() => setIsAuthLoading(false));
+  }, []);
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    navigate('/login');
+  const handleLogout = async () => {
+    try {
+      await ApiService.logout();
+    } finally {
+      setCurrentUser(null);
+      navigate('/login');
+    }
   };
+
+  const handleLogin = async (user: User) => {
+    setCurrentUser(user);
+    navigate('/hub');
+  };
+
+  if (isAuthLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[#f8faff]">
+        <div className="w-16 h-1 w-full max-w-[200px] bg-blue-100 rounded-full overflow-hidden">
+          <div className="h-full bg-blue-600 animate-[loading_1.5s_infinite_linear]"></div>
+        </div>
+        <style>{`
+          @keyframes loading {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+        `}</style>
+      </div>
+    );
+  }
 
   return (
     <Routes>
-      <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={(u) => { setCurrentUser(u); navigate('/hub'); }} />} />
+      <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={handleLogin} />} />
       
       <Route path="/hub" element={
         currentUser ? (

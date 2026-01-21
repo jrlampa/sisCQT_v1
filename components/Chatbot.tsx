@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GeminiService } from '../services/geminiService';
+import { ApiService } from '../services/apiService';
 import { Project, EngineResult } from '../types';
 import { DEFAULT_CABLES } from '../constants';
 
@@ -42,9 +42,15 @@ const Chatbot: React.FC<{ project: Project; result: EngineResult }> = ({ project
       }))
     };
 
-    const response = await GeminiService.askEngineeringQuestion(userMsg, technicalContext);
-    setMessages(prev => [...prev, { role: 'ai', text: response }]);
-    setLoading(false);
+    try {
+      // Usando ApiService para delegar ao backend ou fallback local
+      const response = await ApiService.askAI(userMsg, technicalContext);
+      setMessages(prev => [...prev, { role: 'ai', text: response }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: 'ai', text: "Desculpe, ocorreu um erro ao processar sua solicitação técnica." }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

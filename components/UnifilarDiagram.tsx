@@ -28,7 +28,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   
-  const nodeMap = useMemo(() => new Map<string, NetworkNode>(result.nodes.map(n => [n.id, n])), [result.nodes]);
+  const nodeMap = useMemo(() => new Map<string, NetworkNode>((result?.nodes || []).map(n => [n.id, n])), [result]);
   
   const levels: Map<string, number> = useMemo(() => {
     const lMap = new Map<string, number>();
@@ -59,7 +59,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
   const maxLevel = useMemo(() => Math.max(...Array.from(levels.values()), 0), [levels]);
   const baseWidth = 1000;
   const baseHeight = 700;
-  const levelY = baseHeight / (maxLevel + 2);
+  const levelY = baseHeight / (maxLevel + 2 || 1);
 
   const getPos = (id: string) => {
     const lvl = levels.get(id) || 0;
@@ -144,9 +144,9 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
             const start = getPos(node.parentId);
             const end = getPos(node.id);
             const res = nodeMap.get(node.id);
-            const cableInfo = cables[node.cable];
+            const cableInfo = cables[node.cable] || { ampacity: 0 };
             
-            const isOverloaded = (res?.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
+            const isOverloaded = (res?.calculatedLoad || 0) > (cableInfo.ampacity || 999);
             const isHighRise = (res?.solarVoltageRise || 0) > 5;
             const hasReverse = (res?.netCurrentDay || 0) < 0;
 
@@ -169,7 +169,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
             const isTrafo = node.id === 'TRAFO';
             const res = nodeMap.get(node.id);
             const isSelected = selectedNodeId === node.id;
-            const isWarning = (res?.accumulatedCqt || 0) > 6 || (res?.calculatedLoad || 0) > (cables[node.cable]?.ampacity || 0);
+            const isWarning = (res?.accumulatedCqt || 0) > 6 || (res?.calculatedLoad || 0) > (cables[node.cable]?.ampacity || 999);
 
             return (
               <g 
@@ -210,7 +210,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl font-black">{selectedNode.id.charAt(0)}</div>
                <div className="flex flex-col">
                   <span className="text-xs font-black text-gray-800 uppercase tracking-tighter">Ponto {selectedNode.id}</span>
-                  <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{resSelected?.calculatedLoad?.toFixed(1) ?? 0}A | {resSelected?.accumulatedCqt?.toFixed(2) ?? 0}%</span>
+                  <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{(resSelected?.calculatedLoad || 0).toFixed(1)}A | {(resSelected?.accumulatedCqt || 0).toFixed(2)}%</span>
                </div>
             </div>
             <button aria-label="Fechar Painel" onClick={() => setSelectedNodeId(null)} className="text-gray-400 hover:text-red-500 font-black">✕</button>
@@ -259,7 +259,7 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
                   <div key={phase} className="flex flex-col items-center gap-1">
                      <input 
                       className="w-full bg-white/60 border border-blue-50 rounded-lg text-center py-2 text-[10px] font-black text-blue-700 outline-none"
-                      value={(selectedNode.loads as any)[phase]}
+                      value={(selectedNode.loads as any)[phase] || 0}
                       onChange={(e) => onUpdateNode?.(selectedNode.id, phase, Number(e.target.value))}
                      />
                      <span className="text-[8px] font-black text-gray-400 uppercase">{phase}</span>

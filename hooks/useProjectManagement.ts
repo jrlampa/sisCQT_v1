@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Project, EngineResult, Scenario, ProjectParams, NetworkNode } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
@@ -13,19 +13,25 @@ export function useProjectManagement() {
   const [allResults, setAllResults] = useState<Record<string, EngineResult>>({});
   const [isCalculating, setIsCalculating] = useState(false);
   const [recalcTrigger, setRecalcTrigger] = useState(0);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Carregamento Inicial via API
   useEffect(() => {
     ApiService.getProjects().then(setSavedProjects);
   }, []);
 
-  // Persistência via API Service
+  // Persistência com Debounce via API Service
   useEffect(() => {
     if (Object.keys(savedProjects).length > 0) {
-      // No mundo real, salvaríamos apenas o projeto alterado. 
-      // Aqui, mantemos a compatibilidade com a estrutura de "Hub" local.
-      Object.values(savedProjects).forEach(p => ApiService.saveProject(p));
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      
+      saveTimeoutRef.current = setTimeout(() => {
+        Object.values(savedProjects).forEach(p => ApiService.saveProject(p));
+      }, 1000); 
     }
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, [savedProjects]);
 
   const project = useMemo(() => 
@@ -64,7 +70,7 @@ export function useProjectManagement() {
       } finally {
         setIsCalculating(false);
       }
-    }, 200);
+    }, 300); // Aumento leve no throttle para estabilidade
 
     return () => clearTimeout(timeoutId);
   }, [project, recalcTrigger, showToast]);
@@ -155,7 +161,6 @@ export function useProjectManagement() {
     },
     optimizeActive: async () => {
       if (!project || !activeScenario) return;
-      // Chamada via API/Engine
       const { ElectricalEngine } = await import('../services/electricalEngine');
       const optimizedNodes = ElectricalEngine.optimize(
         activeScenario.id, 
