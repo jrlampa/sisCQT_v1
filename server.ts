@@ -39,13 +39,20 @@ app.post('/api/calculate', authMiddleware, (req, res) => {
 });
 
 // --- SERVIÇO DE ARQUIVOS ESTÁTICOS ---
-app.use(express.static(__dirname));
+// Aponta explicitamente para a pasta 'dist' onde o Vite gera o build
+const distPath = path.resolve(__dirname, '../dist'); // Ou apenas 'dist' dependendo de onde o server.ts fica após compilar
+
+// Se estiver rodando via 'ts-node' na raiz, use 'dist'. 
+// Se o server for compilado para dentro de dist, use __dirname.
+// Para garantir, vamos checar se a pasta existe:
+import fs from 'fs';
+const staticDir = fs.existsSync(path.resolve(__dirname, 'dist')) 
+    ? path.resolve(__dirname, 'dist') 
+    : __dirname; 
+
+app.use(express.static(staticDir));
 
 app.get('*', (req, res) => {
   if (req.url.startsWith('/api')) return res.status(404).json({ error: 'Not found' });
-  res.sendFile(path.resolve(__dirname, 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`>>> sisCQT Enterprise AI: Backend Seguro rodando na porta ${PORT}`);
+  res.sendFile(path.resolve(staticDir, 'index.html'));
 });
