@@ -87,6 +87,7 @@ export interface ReportConfig {
   showMaterials: boolean;
   showSignatures: boolean;
   showUnifilar: boolean;
+  showComparison: boolean; // Novo campo
 }
 
 export interface ProjectParams {

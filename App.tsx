@@ -155,7 +155,7 @@ const App: React.FC = () => {
           />
         } />
         <Route path="ai-chat" element={pm.activeResult ? <Chatbot project={pm.project!} result={pm.activeResult} /> : null} />
-        <Route path="report" element={pm.activeResult ? <ProjectReport project={pm.project!} activeScenario={pm.activeScenario!} result={pm.activeResult} /> : null} />
+        <Route path="report" element={pm.activeResult ? <ProjectReport project={pm.project!} activeScenario={pm.activeScenario!} result={pm.activeResult} allResults={pm.allResults} /> : null} />
         <Route path="settings" element={
           <Settings 
             project={pm.project!} 

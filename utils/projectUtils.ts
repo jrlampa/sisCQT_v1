@@ -27,7 +27,8 @@ export const createTemplateProject = (name: string, sob: string, pe: string, lat
     showTopology: true,
     showMaterials: true, 
     showSignatures: true, 
-    showUnifilar: true
+    showUnifilar: true,
+    showComparison: false // Inicia desabilitado por padrão
   },
   scenarios: [
     {

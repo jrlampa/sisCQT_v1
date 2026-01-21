@@ -56,7 +56,6 @@ const Settings: React.FC<SettingsProps> = ({ project, onUpdateCables, onUpdateIp
             <button className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">+ Novo Cabo</button>
           </div>
           <div className="flex flex-col gap-3">
-            {/* FIX: Cast entries to correct cable structure to avoid 'unknown' type errors */}
             {(Object.entries(project.cables) as [string, { r: number, x: number, coef: number, ampacity: number }][]).map(([name, data]) => (
               <div key={name} className="flex items-center gap-4 bg-white/40 p-4 rounded-2xl border border-white/60 group hover:border-blue-200 transition-all">
                 <div className="flex-1">
@@ -83,6 +82,7 @@ const Settings: React.FC<SettingsProps> = ({ project, onUpdateCables, onUpdateIp
                { id: 'showJustification', label: 'Justificativa de Engenharia' },
                { id: 'showUnifilar', label: 'Incluir Diagrama Unifilar' },
                { id: 'showKpis', label: 'Quadro de Resultados Consolidados' },
+               { id: 'showComparison', label: 'Resumo Comparativo de Cenários' }, // Novo item
                { id: 'showTopology', label: 'Tabela de Topologia e Fluxos' },
                { id: 'showMaterials', label: 'Resumo Estimado de Materiais' },
                { id: 'showSignatures', label: 'Campos de Assinatura e Rodapé' }

@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
-import { Project, User } from '../types';
+import React, { useState, useRef } from 'react';
+import { Project, User, NetworkNode } from '../types';
 import { useToast } from '../context/ToastContext.tsx';
-import { createSampleProject } from '../utils/projectUtils';
+import { createSampleProject, createTemplateProject } from '../utils/projectUtils';
+import { KmlService } from '../services/kmlService';
 
 interface ProjectHubProps {
   projects: Record<string, Project>;
@@ -14,6 +15,9 @@ interface ProjectHubProps {
   onDuplicate: (id: string) => void;
   onLogout: () => void;
   onBilling: () => void;
+  // Adicionamos um callback opcional para criação avançada se necessário, 
+  // mas aqui usaremos o padrão e faremos um "update" manual se o useProjectManagement permitir.
+  // Para simplificar, vamos expor uma nova prop ou usar a lógica interna.
 }
 
 const LogoSisCQT = () => (
@@ -26,11 +30,15 @@ const LogoSisCQT = () => (
   </div>
 );
 
-const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCreate, onUpdate, onDelete, onDuplicate, onLogout, onBilling }) => {
+const ProjectHub: React.FC<ProjectHubProps & { onImport?: (project: Project) => void }> = ({ 
+  projects, user, onSelect, onCreate, onUpdate, onDelete, onDuplicate, onLogout, onBilling 
+}) => {
   const { showToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [formProject, setFormProject] = useState({ name: '', sob: '', pe: '', lat: '-22.90', lng: '-43.17' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const projectList = (Object.values(projects) as Project[]).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -40,6 +48,51 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
     if (typeof val !== 'string') return 0;
     const normalized = val.replace(',', '.').replace(/[^\d.-]/g, '');
     return parseFloat(normalized);
+  };
+
+  const handleKmlImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    showToast("Processando camadas geoespaciais...", "info");
+
+    try {
+      const { nodes, metadata } = await KmlService.parseFile(file);
+      
+      // Criar o projeto base
+      const name = `Importado: ${file.name.split('.')[0]}`;
+      const sob = `KML.${Math.floor(Math.random() * 1000)}`;
+      const pe = `BT-KML-${Math.floor(Math.random() * 100)}`;
+      
+      // Aqui, como não temos uma função "createWithNodes" exposta, 
+      // vamos simular a criação e depois o usuário verá os nós no editor.
+      // Em uma implementação real, o useProjectManagement teria um create avançado.
+      // Vou usar o onCreate padrão e depois o sistema precisará lidar com a persistência dos nós.
+      // Como este é um app client-side, podemos injetar os nós no template.
+      
+      // NOTA: Para este protótipo, vamos criar um projeto e o useProjectManagement 
+      // precisaria ser atualizado para aceitar os nós. Como não quero mudar o hook agora,
+      // vou salvar temporariamente no localStorage para o hook pegar.
+      
+      const newProject = createTemplateProject(name, sob, pe, metadata.lat || 0, metadata.lng || 0);
+      newProject.scenarios[0].nodes = nodes;
+      
+      // Persistência manual rápida para garantir que apareça no Hub imediatamente
+      const currentHub = JSON.parse(localStorage.getItem('sisqat_enterprise_hub_v5') || '{}');
+      currentHub[newProject.id] = newProject;
+      localStorage.setItem('sisqat_enterprise_hub_v5', JSON.stringify(currentHub));
+      
+      showToast(`${nodes.length} pontos de rede importados com sucesso!`, "success");
+      
+      // Recarrega a página ou redireciona
+      window.location.reload(); 
+    } catch (err: any) {
+      showToast(`Erro na importação: ${err.message}`, "error");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const openCreateModal = () => {
@@ -67,7 +120,6 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
         onSelect(sample.id);
         return;
     }
-    // Criação via bypass manual ou apenas selecionando se já existir
     onCreate(sample.name, sample.metadata.sob, sample.metadata.electricPoint, sample.metadata.lat, sample.metadata.lng);
   };
 
@@ -115,7 +167,23 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
           <div className="flex gap-4">
             <button onClick={onBilling} className="bg-white/80 border border-blue-100 px-6 py-2.5 rounded-full font-black text-blue-600 text-[10px] uppercase tracking-widest shadow-sm hover:bg-white transition-all">💳 PLANO: {user.plan.toUpperCase()}</button>
             <button onClick={onLogout} className="bg-red-50 text-red-500 px-6 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">SAIR</button>
-            <button onClick={openCreateModal} className="bg-[#004a80] text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 hover:scale-105 transition-all">+ NOVO PROJETO</button>
+            <div className="flex bg-white/40 p-1 rounded-full border border-blue-100">
+               <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept=".kml,.kmz" 
+                onChange={handleKmlImport} 
+               />
+               <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isImporting}
+                className="bg-white text-blue-600 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center gap-2"
+               >
+                 {isImporting ? '⏳ IMPORTANDO...' : '🌍 IMPORTAR KML'}
+               </button>
+               <button onClick={openCreateModal} className="bg-[#004a80] text-white px-8 py-2 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 hover:scale-105 transition-all">+ NOVO PROJETO</button>
+            </div>
           </div>
         </header>
 

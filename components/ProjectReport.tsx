@@ -8,6 +8,7 @@ interface ProjectReportProps {
   project: Project;
   activeScenario: Scenario;
   result: EngineResult;
+  allResults: Record<string, EngineResult>; // Novo prop
 }
 
 const LogoReportIM3 = () => (
@@ -24,7 +25,7 @@ const LogoReportIM3 = () => (
   </div>
 );
 
-const ProjectReport: React.FC<ProjectReportProps> = ({ project, activeScenario, result }) => {
+const ProjectReport: React.FC<ProjectReportProps> = ({ project, activeScenario, result, allResults }) => {
   const { showToast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const currentDate = new Date().toLocaleDateString('pt-BR');
@@ -152,9 +153,55 @@ const ProjectReport: React.FC<ProjectReportProps> = ({ project, activeScenario, 
             </section>
           )}
 
+          {/* 6. Resumo Comparativo de Cenários (Apenas Resumo) */}
+          {reportConfig.showComparison && (
+             <section className="mb-10">
+                <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 border-l-4 border-blue-600 pl-3">5. Resumo Comparativo de Cenários</h3>
+                <div className="overflow-hidden border border-gray-200 rounded-lg">
+                   <table className="w-full text-left border-collapse">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase">Cenário</th>
+                          <th className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase text-center">Máx. CQT (%)</th>
+                          <th className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase text-center">Ocup. Trafo (%)</th>
+                          <th className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase text-center">Demanda (kVA)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {project.scenarios.map(s => {
+                           const res = allResults[s.id];
+                           const isActive = s.id === activeScenario.id;
+                           if (!res) return null;
+                           return (
+                             <tr key={s.id} className={isActive ? 'bg-blue-50/50' : ''}>
+                               <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                     <span className="text-xs font-bold text-gray-800">{s.name}</span>
+                                     {isActive && <span className="text-[7px] font-black text-blue-600 border border-blue-200 px-1 rounded uppercase">Ativo</span>}
+                                  </div>
+                               </td>
+                               <td className={`px-4 py-3 text-xs font-black text-center ${res.kpis.maxCqt > 6 ? 'text-red-500' : 'text-gray-700'}`}>
+                                  {res.kpis.maxCqt.toFixed(2)}%
+                               </td>
+                               <td className={`px-4 py-3 text-xs font-black text-center ${res.kpis.trafoOccupation > 100 ? 'text-red-500' : 'text-gray-700'}`}>
+                                  {res.kpis.trafoOccupation.toFixed(1)}%
+                               </td>
+                               <td className="px-4 py-3 text-xs font-bold text-center text-gray-700">
+                                  {res.kpis.totalLoad.toFixed(2)}
+                               </td>
+                             </tr>
+                           );
+                        })}
+                      </tbody>
+                   </table>
+                </div>
+                <p className="text-[8px] text-gray-400 mt-2 font-medium italic">* Os valores acima refletem a diversidade de carga aplicada individualmente para cada topologia simulada.</p>
+             </section>
+          )}
+
           {reportConfig.showMaterials && (
              <section className="mb-10">
-                <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 border-l-4 border-blue-600 pl-3">5. Resumo Estimado de Condutores</h3>
+                <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 border-l-4 border-blue-600 pl-3">6. Resumo Estimado de Condutores (Cenário Ativo)</h3>
                 <div className="flex flex-col gap-2">
                   {Object.entries(cableQuantities).map(([cable, meters]) => (
                     <div key={cable} className="flex justify-between items-center text-xs py-2 border-b border-dotted border-gray-300">
@@ -171,7 +218,6 @@ const ProjectReport: React.FC<ProjectReportProps> = ({ project, activeScenario, 
               <footer className="pt-12 border-t border-gray-200">
                 <div className="flex justify-center mb-10">
                    <div className="flex flex-col items-center text-center">
-                      {/* Simulação da assinatura manuscrita */}
                       <div className="mb-2 italic font-serif text-2xl text-blue-900 select-none opacity-80" style={{ fontFamily: 'Dancing Script, cursive' }}>
                         Luiz Eduardo Tavares Branco
                       </div>
