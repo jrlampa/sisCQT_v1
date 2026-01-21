@@ -6,7 +6,6 @@ interface ComparisonViewProps {
   project: Project;
   results: Record<string, EngineResult>;
   onSwitchScenario: (id: string) => void;
-  setActiveView: (view: string) => void;
   onCloneScenario: () => void;
   onCreateEmptyScenario: () => void;
 }
@@ -15,7 +14,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
   project, 
   results, 
   onSwitchScenario, 
-  setActiveView, 
   onCloneScenario, 
   onCreateEmptyScenario 
 }) => {
@@ -34,7 +32,6 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
     if (type === 'empty') onCreateEmptyScenario();
     else onCloneScenario();
     setShowMenu(false);
-    setActiveView('dashboard');
   };
 
   return (
@@ -88,10 +85,10 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-sm font-black text-gray-800">{s.name}</span>
                     <button 
-                      onClick={() => { onSwitchScenario(s.id); setActiveView('dashboard'); }}
-                      className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-bold rounded-full shadow-lg shadow-blue-100 hover:scale-105 transition-all"
+                      onClick={() => onSwitchScenario(s.id)}
+                      className={`px-4 py-1.5 text-[10px] font-bold rounded-full shadow-lg transition-all ${project.activeScenarioId === s.id ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:scale-105'}`}
                     >
-                      Selecionar
+                      {project.activeScenarioId === s.id ? 'Ativo' : 'Selecionar'}
                     </button>
                   </div>
                 </th>

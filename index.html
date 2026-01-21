@@ -35,13 +35,6 @@
             0% { background-position: -200% 0; }
             100% { background-position: 200% 0; }
         }
-        @keyframes danger-pulse {
-            0%, 100% { background-color: #ef4444; transform: scale(1); }
-            50% { background-color: #dc2626; transform: scale(1.02); }
-        }
-        .animate-danger {
-            animation: danger-pulse 1s infinite ease-in-out;
-        }
         ::-webkit-scrollbar {
             width: 6px;
         }
@@ -56,27 +49,10 @@
             background: rgba(0, 0, 0, 0.2);
         }
 
-        /* Otimização de Impressão */
         @media print {
-            body {
-                background: white !important;
-                padding: 0 !important;
-                margin: 0 !important;
-            }
-            aside, nav, header, button, .print-hidden {
-                display: none !important;
-            }
-            main {
-                background: white !important;
-                border: none !important;
-                box-shadow: none !important;
-                padding: 0 !important;
-                width: 100% !important;
-                max-width: none !important;
-            }
-            #root {
-                display: block !important;
-            }
+            body { background: white !important; }
+            aside, nav, header, button, .print-hidden { display: none !important; }
+            main { border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; }
         }
     </style>
 <script type="importmap">
@@ -85,6 +61,7 @@
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?external=react,react-dom",
     "@google/genai": "https://esm.sh/@google/genai@1.37.0",
     "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",

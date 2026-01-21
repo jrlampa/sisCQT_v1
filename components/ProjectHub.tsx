@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Project, User } from '../types';
 import { useToast } from '../context/ToastContext.tsx';
+import { createSampleProject } from '../utils/projectUtils';
 
 interface ProjectHubProps {
   projects: Record<string, Project>;
@@ -31,7 +32,6 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [formProject, setFormProject] = useState({ name: '', sob: '', pe: '', lat: '-22.90', lng: '-43.17' });
 
-  // FIX: Cast Object.values to Project[] to ensure type safety during sorting
   const projectList = (Object.values(projects) as Project[]).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
@@ -59,6 +59,16 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
       lng: prj.metadata.lng.toString() 
     });
     setIsModalOpen(true);
+  };
+
+  const handleLoadSample = () => {
+    const sample = createSampleProject();
+    if (projects[sample.id]) {
+        onSelect(sample.id);
+        return;
+    }
+    // Criação via bypass manual ou apenas selecionando se já existir
+    onCreate(sample.name, sample.metadata.sob, sample.metadata.electricPoint, sample.metadata.lat, sample.metadata.lng);
   };
 
   const handleFormSubmit = () => {
@@ -103,7 +113,7 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
           </div>
 
           <div className="flex gap-4">
-            <button onClick={onBilling} className="bg-white/80 border border-blue-100 px-6 py-2.5 rounded-full font-black text-blue-600 text-[10px] uppercase tracking-widest shadow-sm hover:bg-white transition-all">💳 PLAN: {user.plan.toUpperCase()}</button>
+            <button onClick={onBilling} className="bg-white/80 border border-blue-100 px-6 py-2.5 rounded-full font-black text-blue-600 text-[10px] uppercase tracking-widest shadow-sm hover:bg-white transition-all">💳 PLANO: {user.plan.toUpperCase()}</button>
             <button onClick={onLogout} className="bg-red-50 text-red-500 px-6 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">SAIR</button>
             <button onClick={openCreateModal} className="bg-[#004a80] text-white px-8 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 hover:scale-105 transition-all">+ NOVO PROJETO</button>
           </div>
@@ -116,8 +126,11 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
             {projectList.length === 0 ? (
               <div className="flex flex-col items-center gap-6 z-10 py-20">
                 <div className="w-24 h-24 bg-orange-50 rounded-2xl flex items-center justify-center text-5xl">📁</div>
-                <h2 className="text-3xl font-black text-gray-300">Hub de Projetos Vazio</h2>
-                <button onClick={openCreateModal} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 hover:scale-105 transition-all">Criar meu primeiro projeto</button>
+                <h2 className="text-3xl font-black text-gray-300 uppercase tracking-tighter">Hub de Projetos Vazio</h2>
+                <div className="flex gap-4 mt-2">
+                    <button onClick={openCreateModal} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 hover:scale-105 transition-all">Criar Novo</button>
+                    <button onClick={handleLoadSample} className="bg-orange-500 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-orange-200 hover:scale-105 transition-all">Carregar Exemplo</button>
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full z-10 p-4">
@@ -131,7 +144,7 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
                     
                     <div className="flex justify-between items-start mb-4">
                       <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter ${prj.id.includes('SAMPLE') ? 'bg-orange-500 text-white' : 'bg-blue-50 text-blue-600'}`}>
-                        {prj.id.includes('SAMPLE') ? 'ENGINEERING DEMO' : `SOB ${prj.metadata.sob}`}
+                        {prj.id.includes('SAMPLE') ? 'DEMO ENGENHARIA' : `SOB ${prj.metadata.sob}`}
                       </span>
                       <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{prj.metadata.electricPoint}</span>
                     </div>
@@ -139,7 +152,7 @@ const ProjectHub: React.FC<ProjectHubProps> = ({ projects, user, onSelect, onCre
                     <p className="text-[9px] text-gray-400 font-bold mb-6">{prj.metadata.city}</p>
                     <div className="mt-auto flex justify-between items-center pt-4 border-t border-blue-50">
                       <span className="text-[8px] font-bold text-gray-300">{new Date(prj.updatedAt).toLocaleDateString()}</span>
-                      <span className="text-blue-600 font-black text-[10px] group-hover:translate-x-1 transition-transform">ABRIR ➔</span>
+                      <span className="text-blue-600 font-black text-[10px] group-hover:translate-x-1 transition-transform uppercase">ABRIR ➔</span>
                     </div>
                   </div>
                 ))}

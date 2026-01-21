@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useParams, Outlet } from 'react-router-dom';
 import Layout from './components/Layout.tsx';
 import Dashboard from './components/Dashboard.tsx';
 import ProjectHub from './components/ProjectHub.tsx';
@@ -21,6 +22,8 @@ const AUTH_KEY = 'sisqat_user_session';
 
 const App: React.FC = () => {
   const { showToast } = useToast();
+  const navigate = useNavigate();
+  
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = sessionStorage.getItem(AUTH_KEY);
     return saved ? JSON.parse(saved) : null;
@@ -33,106 +36,134 @@ const App: React.FC = () => {
     else sessionStorage.removeItem(AUTH_KEY);
   }, [currentUser]);
 
-  if (!currentUser) {
-    return <Login onLogin={setCurrentUser} />;
-  }
+  // Componente de proteção de rota para projetos com tratamento de erro
+  const ProjectRouteWrapper = () => {
+    const { projectId } = useParams();
+    
+    useEffect(() => {
+      if (projectId) {
+        // Verifica se o projeto existe antes de tentar carregar
+        if (pm.savedProjects[projectId]) {
+          pm.setCurrentProjectId(projectId);
+        } else {
+          showToast("Projeto não encontrado ou removido.", "warning");
+          navigate('/hub');
+        }
+      }
+    }, [projectId, pm.savedProjects, navigate]);
 
-  if (!pm.project) {
+    if (!pm.project || pm.project.id !== projectId) {
+        return (
+            <div className="flex flex-col items-center justify-center h-screen bg-[#f0f4ff]">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
+                <p className="mt-4 text-[10px] font-black text-blue-600 uppercase tracking-widest animate-pulse">Carregando Projeto...</p>
+            </div>
+        );
+    }
+
     return (
-      <ProjectHub 
-        projects={pm.savedProjects}
-        onSelect={(id) => { pm.setCurrentProjectId(id); pm.setActiveView('dashboard'); }}
-        onCreate={pm.createProject}
-        onUpdate={(id, name, sob, pe, lat, lng) => {
-          pm.updateProject({ name, metadata: { ...pm.savedProjects[id].metadata, sob, electricPoint: pe, lat, lng } });
-          showToast("Metadados atualizados.");
-        }}
-        onDelete={pm.deleteProject}
-        onDuplicate={pm.duplicateProject}
-        user={currentUser}
-        onLogout={() => setCurrentUser(null)}
-        onBilling={() => pm.setActiveView('billing')}
-      />
+      <Layout 
+        project={pm.project}
+        user={currentUser!}
+        onGoToHub={() => navigate('/hub')}
+        onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })}
+        onCloneScenario={pm.cloneScenario}
+        onDeleteScenario={pm.deleteScenario}
+        onLogout={() => { setCurrentUser(null); navigate('/login'); }}
+      >
+        <Outlet />
+      </Layout>
     );
-  }
-
-  if (pm.activeView === 'billing') {
-      return (
-          <div className="p-8">
-              <button onClick={() => pm.setActiveView('dashboard')} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all">← Voltar</button>
-              <Billing user={currentUser} onUpdatePlan={(plan) => {
-                setCurrentUser({...currentUser, plan});
-                showToast(`Upgrade para ${plan} realizado!`, "success");
-              }} />
-          </div>
-      );
-  }
+  };
 
   return (
-    <Layout 
-      activeView={pm.activeView} setActiveView={pm.setActiveView}
-      project={pm.project}
-      user={currentUser}
-      onGoToHub={() => pm.setCurrentProjectId(null)}
-      onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })}
-      onCloneScenario={pm.cloneScenario}
-      onDeleteScenario={pm.deleteScenario}
-      onLogout={() => setCurrentUser(null)}
-    >
-      {!pm.activeResult && pm.activeView !== 'settings' ? (
-        <div className="flex flex-col items-center justify-center h-full py-32"><div className="w-12 h-12 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div></div>
-      ) : (
-        <>
-          {pm.activeView === 'dashboard' && (
+    <Routes>
+      <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={(u) => { setCurrentUser(u); navigate('/hub'); }} />} />
+      
+      {/* Rotas Protegidas */}
+      <Route path="/" element={currentUser ? <Navigate to="/hub" /> : <Navigate to="/login" />} />
+      
+      <Route path="/hub" element={
+        currentUser ? (
+          <ProjectHub 
+            projects={pm.savedProjects}
+            onSelect={(id) => navigate(`/project/${id}/dashboard`)}
+            onCreate={(name, sob, pe, lat, lng) => {
+              const id = pm.createProject(name, sob, pe, lat, lng);
+              navigate(`/project/${id}/dashboard`);
+            }}
+            onUpdate={(id, name, sob, pe, lat, lng) => {
+              pm.updateProject({ name, metadata: { ...pm.savedProjects[id].metadata, sob, electricPoint: pe, lat, lng } });
+              showToast("Dados atualizados.");
+            }}
+            onDelete={pm.deleteProject}
+            onDuplicate={pm.duplicateProject}
+            user={currentUser}
+            onLogout={() => { setCurrentUser(null); navigate('/login'); }}
+            onBilling={() => navigate('/billing')}
+          />
+        ) : <Navigate to="/login" />
+      } />
+
+      <Route path="/billing" element={
+        currentUser ? (
+          <div className="p-8 min-h-screen bg-[#f0f4ff]">
+              <button onClick={() => navigate(-1)} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all shadow-sm">← Voltar</button>
+              <Billing user={currentUser} onUpdatePlan={(plan) => {
+                setCurrentUser({...currentUser, plan});
+                showToast(`Plano atualizado para ${plan}!`, "success");
+              }} />
+          </div>
+        ) : <Navigate to="/login" />
+      } />
+
+      <Route path="/project/:projectId" element={currentUser ? <ProjectRouteWrapper /> : <Navigate to="/login" />}>
+        <Route index element={<Navigate to="dashboard" />} />
+        <Route path="dashboard" element={
+          pm.activeResult ? (
             <Dashboard 
-              project={pm.project} result={pm.activeResult!} isCalculating={pm.isCalculating}
-              setActiveView={pm.setActiveView} onUpdateMetadata={(m) => pm.updateProject({ metadata: m })} 
+              project={pm.project!} result={pm.activeResult} isCalculating={pm.isCalculating}
+              onUpdateMetadata={(m) => pm.updateProject({ metadata: m })} 
             />
-          )}
-          {pm.activeView === 'editor' && (
+          ) : null
+        } />
+        <Route path="editor" element={
+          pm.activeResult ? (
             <ProjectEditor 
-              project={{...pm.project, ...pm.activeScenario!}} 
+              project={{...pm.project!, ...pm.activeScenario!}} 
               onUpdate={(n) => pm.updateActiveScenario({ nodes: n })} 
               onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} 
               onOptimize={pm.optimizeActive}
               onRecalculate={pm.forceRecalculate}
-              calculatedNodes={pm.activeResult!.nodes}
-              result={pm.activeResult!}
+              calculatedNodes={pm.activeResult.nodes}
+              result={pm.activeResult}
             />
-          )}
-          {pm.activeView === 'gis' && (
-            <GISView 
-              project={pm.project} result={pm.activeResult!} 
-              onUpdateNodes={(n) => pm.updateActiveScenario({ nodes: n })} 
-            />
-          )}
-          {pm.activeView === 'solar' && (
-            <SolarDashboard 
-              project={pm.project} result={pm.activeResult!} 
-              onUpdateParams={(p) => pm.updateActiveScenario({ params: p })}
-            />
-          )}
-          {pm.activeView === 'sustainability' && <SustainabilityDashboard project={pm.project} result={pm.activeResult!} />}
-          {pm.activeView === 'comparison' && (
-            <ComparisonView 
-              project={pm.project} results={pm.allResults} setActiveView={pm.setActiveView} 
-              onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })} 
-              onCloneScenario={pm.cloneScenario} onCreateEmptyScenario={pm.createEmptyScenario}
-            />
-          )}
-          {pm.activeView === 'ai-chat' && <Chatbot project={pm.project} result={pm.activeResult!} />}
-          {pm.activeView === 'report' && <ProjectReport project={pm.project} activeScenario={pm.activeScenario!} result={pm.activeResult!} />}
-          {pm.activeView === 'settings' && (
-            <Settings 
-              project={pm.project} 
-              onUpdateCables={(c) => pm.updateProject({ cables: c })} 
-              onUpdateIpTypes={(i) => pm.updateProject({ ipTypes: i })} 
-              onUpdateReportConfig={(r) => pm.updateProject({ reportConfig: r })} 
-            />
-          )}
-        </>
-      )}
-    </Layout>
+          ) : null
+        } />
+        <Route path="gis" element={pm.activeResult ? <GISView project={pm.project!} result={pm.activeResult} onUpdateNodes={(n) => pm.updateActiveScenario({ nodes: n })} /> : null} />
+        <Route path="solar" element={pm.activeResult ? <SolarDashboard project={pm.project!} result={pm.activeResult} onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} /> : null} />
+        <Route path="sustainability" element={pm.activeResult ? <SustainabilityDashboard project={pm.project!} result={pm.activeResult} /> : null} />
+        <Route path="comparison" element={
+          <ComparisonView 
+            project={pm.project!} results={pm.allResults} 
+            onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })} 
+            onCloneScenario={pm.cloneScenario} onCreateEmptyScenario={pm.createEmptyScenario}
+          />
+        } />
+        <Route path="ai-chat" element={pm.activeResult ? <Chatbot project={pm.project!} result={pm.activeResult} /> : null} />
+        <Route path="report" element={pm.activeResult ? <ProjectReport project={pm.project!} activeScenario={pm.activeScenario!} result={pm.activeResult} /> : null} />
+        <Route path="settings" element={
+          <Settings 
+            project={pm.project!} 
+            onUpdateCables={(c) => pm.updateProject({ cables: c })} 
+            onUpdateIpTypes={(i) => pm.updateProject({ ipTypes: i })} 
+            onUpdateReportConfig={(r) => pm.updateProject({ reportConfig: r })} 
+          />
+        } />
+      </Route>
+
+      <Route path="*" element={<Navigate to="/hub" />} />
+    </Routes>
   );
 };
 

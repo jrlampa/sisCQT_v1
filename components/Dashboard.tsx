@@ -10,22 +10,19 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer, 
-  ComposedChart,
-  Line
+  ResponsiveContainer
 } from 'recharts';
-import { ElectricalEngine } from '../services/electricalEngine';
+import { useToast } from '../context/ToastContext';
 
 interface DashboardProps {
   project: Project;
   result: EngineResult;
   isCalculating?: boolean;
-  setActiveView: (view: string) => void;
   onUpdateMetadata: (metadata: any) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ project, result, isCalculating, setActiveView, onUpdateMetadata }) => {
-  const nominalVoltage = 220; 
+const Dashboard: React.FC<DashboardProps> = ({ project, result, isCalculating, onUpdateMetadata }) => {
+  const { showToast } = useToast();
   const [localLat, setLocalLat] = useState(project.metadata.lat.toString());
   const [localLng, setLocalLng] = useState(project.metadata.lng.toString());
   const [isSimulating, setIsSimulating] = useState(false);
@@ -38,32 +35,49 @@ const Dashboard: React.FC<DashboardProps> = ({ project, result, isCalculating, s
 
   const activeScenario = project.scenarios.find(s => s.id === project.activeScenarioId)!;
 
-  const handleMonteCarlo = async () => {
+  const handleMonteCarlo = () => {
     setIsSimulating(true);
-    await new Promise(r => setTimeout(r, 600)); // UX delay
-    const stoch = ElectricalEngine.runMonteCarlo(
-      activeScenario.nodes,
-      activeScenario.params,
-      project.cables,
-      project.ipTypes
-    );
-    setStochasticResult(stoch);
-    setIsSimulating(false);
+    const worker = new Worker(new URL('../services/electricalWorker.ts', import.meta.url), { type: 'module' });
+
+    worker.onmessage = (e) => {
+      const { type, payload } = e.data;
+      if (type === 'MONTE_CARLO_RESULT') {
+        setStochasticResult(payload);
+        setIsSimulating(false);
+        showToast("Análise estocástica concluída com 1500 iterações.", "success");
+        worker.terminate();
+      } else if (type === 'ERROR') {
+        showToast("Erro ao processar simulação.", "error");
+        setIsSimulating(false);
+        worker.terminate();
+      }
+    };
+
+    worker.onerror = () => {
+      showToast("Falha no thread de cálculo.", "error");
+      setIsSimulating(false);
+      worker.terminate();
+    };
+
+    worker.postMessage({
+      type: 'RUN_MONTE_CARLO',
+      payload: {
+        nodes: activeScenario.nodes,
+        params: activeScenario.params,
+        cables: project.cables,
+        ips: project.ipTypes,
+        iterations: 1500
+      }
+    });
   };
 
-  // Cálculo do Índice de Confiabilidade
   const reliabilityIndex = useMemo(() => {
     const { maxCqt, trafoOccupation } = result.kpis;
-    
-    // Score CQT: 0% = 100, 6% = 0
     const scoreCqt = Math.max(0, 100 - (maxCqt / 6) * 100);
-    
-    // Score Trafo: Ideal até 80%, crítico em 120%
     let scoreTrafo = 100;
     if (trafoOccupation > 80) {
       scoreTrafo = Math.max(0, 100 - ((trafoOccupation - 80) / 40) * 100);
     }
-    
     return Math.round((scoreCqt * 0.7) + (scoreTrafo * 0.3));
   }, [result.kpis.maxCqt, result.kpis.trafoOccupation]);
 
@@ -120,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({ project, result, isCalculating, s
       {/* KPIs Principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat, i) => (
-          <div key={i} className={`glass-dark rounded-[24px] p-6 border-l-4 shadow-sm flex flex-col justify-between h-32 transition-all hover:scale-105 ${stat.label === 'Índice Confiabilidade' ? 'border-indigo-500 bg-indigo-50/10' : 'border-blue-500'}`}>
+          <div key={i} className={`glass-dark rounded-[24px] p-6 border-l-4 shadow-sm flex flex-col justify-between h-32 transition-all hover:scale-105 ${stat.label === 'Índice Confiabilidade' ? 'border-indigo-500 bg-indigo-50/10' : 'border-blue-50'}`}>
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{stat.label}</span>
             <div className="flex items-baseline gap-2">
               <span className={`text-2xl font-black ${stat.color} tracking-tighter`}>{stat.value}</span>
