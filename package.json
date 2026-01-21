@@ -1,34 +1,23 @@
+
 {
-  "name": "siscqt-enterprise-ai---novas-implementações",
-  "private": true,
-  "version": "0.0.0",
+  "name": "siscqt-enterprise-ai",
+  "version": "1.0.0",
+  "description": "Plataforma de Engenharia Elétrica IM3 Brasil",
+  "main": "server.ts",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
   "dependencies": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "react-router-dom": "6.22.3",
-    "@google/genai": "1.37.0",
-    "recharts": "2.15.0",
-    "leaflet": "1.9.4",
-    "react-leaflet": "4.2.1",
-    "jszip": "3.10.1",
-    "@azure/msal-browser": "5.16.0",
-    "@azure/msal-react": "2.0.16",
-    "path": "^0.12.7",
-    "express": "^5.2.1",
-    "@prisma/client": "^7.3.0",
-    "url": "^0.11.4",
-    "jsonwebtoken": "^9.0.3"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^6.22.3",
+    "@azure/msal-browser": "^3.11.0",
+    "@azure/msal-react": "^2.0.12",
+    "express": "^5.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "@prisma/client": "^5.10.2",
+    "@google/genai": "^0.2.1",
+    "recharts": "^2.12.2",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
+    "jszip": "^3.10.1"
   }
 }

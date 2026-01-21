@@ -1,14 +1,19 @@
-
 import { Configuration, LogLevel } from "@azure/msal-browser";
 
 export const msalConfig: Configuration = {
     auth: {
-        clientId: "SEU_CLIENT_ID_DA_AZURE", // Substituir pelo ID do Aplicativo
-        authority: "https://login.microsoftonline.com/SEU_TENANT_ID", // Substituir pelo Tenant ID ou 'common'
-        redirectUri: window.location.origin,
+        // ID do Aplicativo sisCQT Enterprise (Registrado na IM3 Brasil)
+        clientId: "df5b2c78-c26b-47ae-aa8c-86dab74752fb",
+        
+        // URL da Organização (IM3 Brasil) - Locatário específico
+        authority: "https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31",
+        
+        // Onde o usuário 'cai' após logar. 
+        // Em desenvolvimento local: http://localhost:5173
+        redirectUri: window.location.origin, 
     },
     cache: {
-        cacheLocation: "localStorage",
+        cacheLocation: "sessionStorage", // 'sessionStorage' é mais seguro que localStorage para dados de sessão
         storeAuthStateInCookie: false,
     },
     system: {
@@ -16,16 +21,25 @@ export const msalConfig: Configuration = {
             loggerCallback: (level, message, containsPii) => {
                 if (containsPii) return;
                 switch (level) {
-                    case LogLevel.Error: console.error(message); return;
-                    case LogLevel.Info: console.info(message); return;
-                    case LogLevel.Verbose: console.debug(message); return;
-                    case LogLevel.Warning: console.warn(message); return;
+                    case LogLevel.Error:
+                        console.error("[MSAL Error]", message);
+                        return;
+                    case LogLevel.Info:
+                        // console.info(message); // Descomente para debugar login
+                        return;
+                    case LogLevel.Verbose:
+                        console.debug("[MSAL Verbose]", message);
+                        return;
+                    case LogLevel.Warning:
+                        console.warn("[MSAL Warning]", message);
+                        return;
                 }
             }
         }
     }
 };
 
+// Escopos necessários para autenticação e leitura de perfil básico
 export const loginRequest = {
-    scopes: ["User.Read"]
+    scopes: ["User.Read", "openid", "profile"]
 };

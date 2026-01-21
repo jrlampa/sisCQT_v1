@@ -6,6 +6,7 @@ const API_BASE = '/api';
 const TOKEN_KEY = 'sisqat_auth_token';
 const MOCK_USER_KEY = 'sisqat_mock_user';
 
+// Detecção de ambiente para habilitar mocks automaticamente se necessário
 const IS_PREVIEW = window.location.hostname === 'localhost' || 
                    window.location.hostname.includes('stackblitz') || 
                    window.location.hostname.includes('webcontainer') ||
@@ -13,9 +14,13 @@ const IS_PREVIEW = window.location.hostname === 'localhost' ||
                    window.location.hostname.includes('gemini');
 
 export class ApiService {
+  /**
+   * Wrapper universal para requisições à API com injeção de Bearer Token.
+   */
   private static async request<T>(path: string, options?: RequestInit): Promise<T> {
     const token = localStorage.getItem(TOKEN_KEY);
     
+    // Fallback de usuário para modo offline/preview
     if ((token === 'dev-token-im3' || IS_PREVIEW) && path === '/auth/me') {
       const mockUser = localStorage.getItem(MOCK_USER_KEY);
       if (mockUser) return JSON.parse(mockUser) as T;
@@ -26,12 +31,13 @@ export class ApiService {
       ...options?.headers,
     };
 
+    // Injeção do token de autenticação
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout para redes instáveis
 
     try {
       const response = await fetch(`${API_BASE}${path}`, {
@@ -41,14 +47,16 @@ export class ApiService {
       });
       clearTimeout(timeoutId);
 
-      // 404 em ambiente de preview geralmente significa que o backend não está rodando
-      if (response.status === 404 && IS_PREVIEW) {
-         throw new Error("SERVER_OFFLINE");
+      // Tratamento de sessão expirada ou não autorizada
+      if (response.status === 401 && path !== '/auth/login' && path !== '/auth/sync') {
+        this.logout();
+        window.location.href = '/login';
+        throw new Error("Sessão expirada");
       }
 
-      if (response.status === 401 && path !== '/auth/login' && path !== '/auth/sync') {
-        localStorage.removeItem(TOKEN_KEY);
-        window.location.href = '/login';
+      // Fallback para falha do servidor no preview
+      if (response.status === 404 && IS_PREVIEW) {
+         throw new Error("SERVER_OFFLINE");
       }
 
       if (!response.ok) throw new Error(`API Error: ${response.status}`);
@@ -56,11 +64,13 @@ export class ApiService {
     } catch (error: any) {
       clearTimeout(timeoutId);
       
+      // Se estivermos em modo teste/dev, simulamos o sucesso das operações críticas
       if (IS_PREVIEW || token === 'dev-token-im3') {
         if (path === '/auth/me') {
           return JSON.parse(localStorage.getItem(MOCK_USER_KEY) || 'null') as T;
         }
         if (path === '/calculate') {
+           // Executa o motor elétrico localmente se o backend falhar
            const { ElectricalEngine } = await import('./electricalEngine.ts');
            const body = JSON.parse(options?.body as string);
            return ElectricalEngine.calculate(body.scenarioId, body.nodes, body.params, body.cables, body.ips) as any;
@@ -70,6 +80,9 @@ export class ApiService {
     }
   }
 
+  /**
+   * Sincroniza o token recebido da Azure com o banco de dados da aplicação.
+   */
   static async syncUser(accessToken: string): Promise<User> {
     const devUser: User = {
       id: 'dev-user-01',
@@ -79,7 +92,8 @@ export class ApiService {
       role: 'admin'
     };
 
-    if (accessToken === 'dev-token-im3' || IS_PREVIEW) {
+    // Caso seja o token especial de dev
+    if (accessToken === 'dev-token-im3') {
       localStorage.setItem(TOKEN_KEY, 'dev-token-im3');
       localStorage.setItem(MOCK_USER_KEY, JSON.stringify(devUser));
       return devUser;
@@ -88,15 +102,20 @@ export class ApiService {
     try {
       const res = await fetch(`${API_BASE}/auth/sync`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+        headers: { 
+          'Authorization': `Bearer ${accessToken}`, 
+          'Content-Type': 'application/json' 
+        }
       });
       
-      if (!res.ok) throw new Error("Acesso negado");
+      if (!res.ok) throw new Error("Acesso negado: Domínio corporativo inválido.");
+      
       const data = await res.json();
       localStorage.setItem(TOKEN_KEY, accessToken);
       localStorage.setItem(MOCK_USER_KEY, JSON.stringify(data.user));
       return data.user;
     } catch (e) {
+      // Se houver erro de rede no preview, permitimos o acesso como guest
       if (IS_PREVIEW) {
         localStorage.setItem(TOKEN_KEY, 'dev-token-im3');
         localStorage.setItem(MOCK_USER_KEY, JSON.stringify(devUser));
