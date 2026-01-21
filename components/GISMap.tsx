@@ -1,11 +1,9 @@
-
 import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useToast } from '../context/ToastContext';
 
-// Correção para ícones do Leaflet que as vezes não carregam corretamente com build tools
-import 'leaflet/dist/leaflet.css';
+// Importante: O CSS do Leaflet é carregado via <link> no index.html para evitar erros de ESM no navegador
 
 const trafoIcon = new L.Icon({
   iconUrl: 'https://cdn-icons-png.flaticon.com/512/355/355980.png',
@@ -25,7 +23,6 @@ interface GISMapProps {
   onNodeCreated?: () => void;
 }
 
-// Sub-componente para lidar com cliques no mapa
 const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
   useMapEvents({
     click: (e) => {
@@ -47,7 +44,9 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
       const data = await response.json();
       setGeoData(data);
     } catch (err) {
-      showToast("Erro ao carregar dados do mapa", "error");
+      console.error(err);
+      // Fallback para não quebrar a UI se a API ainda não estiver pronta
+      setGeoData({ type: "FeatureCollection", features: [] });
     } finally {
       setLoading(false);
     }
@@ -79,9 +78,11 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
         showToast(`${type} criado com sucesso!`, "success");
         fetchNodes();
         if (onNodeCreated) onNodeCreated();
+      } else {
+        throw new Error("Falha na persistência");
       }
     } catch (err) {
-      showToast("Erro ao salvar nó no banco", "error");
+      showToast("Erro ao salvar nó. Verifique a conexão com o banco.", "error");
     }
   };
 
@@ -97,7 +98,7 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
       )}
       
       <MapContainer 
-        center={[-22.9068, -43.1729]} // Rio de Janeiro default
+        center={[-22.9068, -43.1729]} 
         zoom={15} 
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
@@ -109,9 +110,9 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
         
         <MapClickHandler onMapClick={handleAddNode} />
 
-        {geoData && geoData.features.map((feature: any) => (
+        {geoData && geoData.features && geoData.features.map((feature: any) => (
           <Marker 
-            key={feature.id}
+            key={feature.id || Math.random()}
             position={[feature.geometry.coordinates[1], feature.geometry.coordinates[0]]}
             icon={feature.properties.type === 'TRAFO' ? trafoIcon : posteIcon}
           >
