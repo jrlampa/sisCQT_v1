@@ -13,7 +13,7 @@ export class ElectricalEngine {
   private static readonly ENERGY_PRICE_BRL = 0.85;
   private static readonly CO2_FACTOR_KG_KWH = 0.126;
   private static readonly LOAD_LOSS_FACTOR = 0.25;
-  private static readonly DAY_LOAD_FACTOR = 0.30; // 30% da carga de pico ocorre durante o sol pleno
+  private static readonly DAY_LOAD_FACTOR = 0.30; 
 
   static calculate(
     scenarioId: string, 
@@ -108,8 +108,7 @@ export class ElectricalEngine {
         node.calculatedCqt = segmentCqt;
         node.accumulatedCqt = parentAccumulatedCqt + segmentCqt;
 
-        // Análise de Geração (Fluxo Reverso)
-        const dayDemandKva = (node.accumulatedKva - (totalIpKva / processedNodes.length)) * this.DAY_LOAD_FACTOR;
+        const dayDemandKva = (node.accumulatedKva - (totalIpKva / processedNodes.length)) * ElectricalEngine.DAY_LOAD_FACTOR;
         const netDayKva = dayDemandKva - node.accumulatedSolarKva;
         const dayAmps = netDayKva / (1.732 * 0.380);
         
@@ -122,7 +121,7 @@ export class ElectricalEngine {
           maxReverseAmps = Math.max(maxReverseAmps, Math.abs(dayAmps));
           
           if (!warnings.some(w => w.includes("INVERSÃO DE FLUXO"))) {
-             warnings.push(`🔄 INVERSÃO DE FLUXO DETECTADA: O ponto ${node.id} apresenta injeção líquida de potência. CAUSA: Excedente de geração fotovoltaica local (GD > Carga). CONSEQ. INTERNAS: Elevação do gradiente de tensão (Profile Rise), stress térmico por bidirecionalidade e risco de descoordenação de elos fusíveis. CONSEQ. SISTÊMICAS: Interferência na regulação de tensão da Média Tensão (Subestação), aumento de perdas no núcleo do transformador por distorção de fluxo e potencial impacto na vida útil de reguladores de tensão a montante.`);
+             warnings.push(`🔄 INVERSÃO DE FLUXO DETECTADA: O ponto ${node.id} apresenta injeção líquida de potência.`);
           }
         }
 
@@ -154,9 +153,9 @@ export class ElectricalEngine {
 
     const totalLoad = totalDiversifiedKva + totalIpKva + totalPointKva;
 
-    const annualEnergyLossKwh = (totalJouleLossWatts / 1000) * 8760 * this.LOAD_LOSS_FACTOR;
-    const annualFinancialLossBrl = annualEnergyLossKwh * this.ENERGY_PRICE_BRL;
-    const annualCo2Kg = annualEnergyLossKwh * this.CO2_FACTOR_KG_KWH;
+    const annualEnergyLossKwh = (totalJouleLossWatts / 1000) * 8760 * ElectricalEngine.LOAD_LOSS_FACTOR;
+    const annualFinancialLossBrl = annualEnergyLossKwh * ElectricalEngine.ENERGY_PRICE_BRL;
+    const annualCo2Kg = annualEnergyLossKwh * ElectricalEngine.CO2_FACTOR_KG_KWH;
 
     const sustainability: SustainabilityMetrics = {
       annualEnergyLossKwh,
@@ -203,7 +202,7 @@ export class ElectricalEngine {
 
     while (hasViolation && iteration < 10) {
       hasViolation = false;
-      const result = this.calculate(scenarioId, currentNodes, params, cablesCatalog, ipCatalog);
+      const result = ElectricalEngine.calculate(scenarioId, currentNodes, params, cablesCatalog, ipCatalog);
       const resultMap = new Map(result.nodes.map(n => [n.id, n]));
 
       const optimizeBranch = (nodeId: string) => {
@@ -251,7 +250,7 @@ export class ElectricalEngine {
         }
       }));
 
-      const res = this.calculate('sim', simulatedNodes, params, cables, ips);
+      const res = ElectricalEngine.calculate('sim', simulatedNodes, params, cables, ips);
       const maxCqt = res.kpis.maxCqt;
       results.push(maxCqt);
       if (maxCqt > limit) failureCount++;
@@ -259,8 +258,8 @@ export class ElectricalEngine {
 
     results.sort((a, b) => a - b);
     const bins = 20;
-    const min = results[0];
-    const max = results[results.length - 1];
+    const min = results[0] || 0;
+    const max = results[results.length - 1] || 1;
     const step = (max - min) / bins;
     const distribution = [];
     for (let i = 0; i < bins; i++) {
@@ -276,7 +275,7 @@ export class ElectricalEngine {
       failureRisk: 100 - stabilityIndex,
       distribution,
       avgMaxCqt: results.reduce((a, b) => a + b, 0) / iterations,
-      p95Cqt: results[Math.floor(iterations * 0.95)]
+      p95Cqt: results[Math.floor(iterations * 0.95)] || 0
     };
   }
 

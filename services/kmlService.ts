@@ -13,10 +13,8 @@ export class KmlService {
 
     if (file.name.toLowerCase().endsWith('.kmz')) {
       const zip = await JSZip.loadAsync(file);
-      // Fix: Cast Object.values to any[] to avoid 'Property name does not exist on type unknown' error
       const kmlFile = (Object.values(zip.files) as any[]).find(f => f.name.toLowerCase().endsWith('.kml'));
       if (!kmlFile) throw new Error("Arquivo KML não encontrado dentro do KMZ.");
-      // Fix: Cast kmlFile to any to avoid 'Property async does not exist on type unknown' error
       kmlText = await (kmlFile as any).async('string');
     } else {
       kmlText = await file.text();
@@ -43,18 +41,18 @@ export class KmlService {
         const coordsStr = pointTag.getElementsByTagName('coordinates')[0]?.textContent || '';
         const [lng, lat] = coordsStr.trim().split(',').map(Number);
         if (!isNaN(lat) && !isNaN(lng)) {
-          points.push({ id: `P-${i}`, lat, lng, name });
+          // ID baseado em timestamp para evitar colisões
+          const tsId = `P-${Date.now()}-${i}`;
+          points.push({ id: tsId, lat, lng, name });
         }
       }
     }
 
     if (points.length === 0) throw new Error("Nenhum ponto de coordenada encontrado no arquivo.");
 
-    // Ordenar pontos (tentar achar o trafo pelo nome ou assumir o primeiro)
     const trafoIdx = points.findIndex(p => p.name.toUpperCase().includes('TRAFO') || p.name.toUpperCase().includes('SUB'));
     const trafoSource = trafoIdx !== -1 ? points.splice(trafoIdx, 1)[0] : points.shift()!;
 
-    // Criar nó raiz (TRAFO)
     const trafoNode: NetworkNode = {
       id: 'TRAFO',
       parentId: '',
@@ -67,13 +65,12 @@ export class KmlService {
     };
     nodes.push(trafoNode);
 
-    // 2. Criar hierarquia linear simples ou por proximidade para os pontos restantes
     let lastParentId = 'TRAFO';
     let lastLat = trafoSource.lat;
     let lastLng = trafoSource.lng;
 
     points.forEach((p, idx) => {
-      const nodeId = p.name.replace(/\s+/g, '_').toUpperCase() || (idx + 1).toString();
+      const nodeId = p.name.replace(/\s+/g, '_').toUpperCase() || `PONTO_${idx + 1}`;
       const dist = Math.round(GisService.calculateDistance(lastLat, lastLng, p.lat, p.lng));
       
       nodes.push({

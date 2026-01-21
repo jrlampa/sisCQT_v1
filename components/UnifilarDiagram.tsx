@@ -28,39 +28,45 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   
-  const nodeMap = new Map<string, NetworkNode>(result.nodes.map(n => [n.id, n]));
+  const nodeMap = useMemo(() => new Map<string, NetworkNode>(result.nodes.map(n => [n.id, n])), [result.nodes]);
   
-  const levels: Map<string, number> = new Map();
-  const getLevel = (id: string): number => {
-    if (levels.has(id)) return levels.get(id)!;
-    const node = nodes.find(n => n.id === id);
-    if (!node || !node.parentId) {
-      levels.set(id, 0);
-      return 0;
-    }
-    const l = getLevel(node.parentId) + 1;
-    levels.set(id, l);
-    return l;
-  };
+  const levels: Map<string, number> = useMemo(() => {
+    const lMap = new Map<string, number>();
+    const getLevelRec = (id: string): number => {
+      if (lMap.has(id)) return lMap.get(id)!;
+      const node = nodes.find(n => n.id === id);
+      if (!node || !node.parentId) {
+        lMap.set(id, 0);
+        return 0;
+      }
+      const l = getLevelRec(node.parentId) + 1;
+      lMap.set(id, l);
+      return l;
+    };
+    nodes.forEach(n => getLevelRec(n.id));
+    return lMap;
+  }, [nodes]);
 
-  nodes.forEach(n => getLevel(n.id));
+  const levelNodes = useMemo(() => {
+    const map = new Map<number, string[]>();
+    levels.forEach((lvl, id) => {
+      if (!map.has(lvl)) map.set(lvl, []);
+      map.get(lvl)!.push(id);
+    });
+    return map;
+  }, [levels]);
 
-  const maxLevel = Math.max(...Array.from(levels.values()), 1);
+  const maxLevel = useMemo(() => Math.max(...Array.from(levels.values()), 0), [levels]);
   const baseWidth = 1000;
   const baseHeight = 700;
-  const levelY = baseHeight / (maxLevel + 1.5);
-
-  const levelNodes: Map<number, string[]> = new Map();
-  levels.forEach((lvl, id) => {
-    if (!levelNodes.has(lvl)) levelNodes.set(lvl, []);
-    levelNodes.get(lvl)!.push(id);
-  });
+  const levelY = baseHeight / (maxLevel + 2);
 
   const getPos = (id: string) => {
     const lvl = levels.get(id) || 0;
     const idsInLvl = levelNodes.get(lvl) || [];
     const idx = idsInLvl.indexOf(id);
-    const x = (baseWidth / (idsInLvl.length + 1)) * (idx + 1);
+    const count = idsInLvl.length || 1;
+    const x = (baseWidth / (count + 1)) * (idx + 1);
     const y = levelY * lvl + 100;
     return { x, y };
   };
@@ -97,6 +103,8 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      role="application"
+      aria-label="Diagrama Unifilar Interativo"
     >
       <div className="flex justify-between items-center mb-6 print:hidden relative z-20">
         <div className="flex flex-col">
@@ -110,8 +118,8 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-white/60 p-1 rounded-xl border border-white/80 shadow-sm">
-            <button onClick={() => setZoom(z => Math.min(z + 0.1, 3))} className="w-8 h-8 flex items-center justify-center text-blue-600 font-black hover:bg-white rounded-lg transition-all">+</button>
-            <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.5))} className="w-8 h-8 flex items-center justify-center text-blue-600 font-black hover:bg-white rounded-lg transition-all">−</button>
+            <button aria-label="Aumentar Zoom" onClick={() => setZoom(z => Math.min(z + 0.1, 3))} className="w-8 h-8 flex items-center justify-center text-blue-600 font-black hover:bg-white rounded-lg transition-all">+</button>
+            <button aria-label="Diminuir Zoom" onClick={() => setZoom(z => Math.max(z - 0.1, 0.5))} className="w-8 h-8 flex items-center justify-center text-blue-600 font-black hover:bg-white rounded-lg transition-all">−</button>
           </div>
           <button onClick={() => {setZoom(1); setOffset({x:0, y:0}); setSelectedNodeId(null);}} className="px-4 py-2 bg-white text-[9px] font-black text-gray-500 rounded-xl border border-gray-100 shadow-sm">RESET</button>
         </div>
@@ -122,14 +130,9 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
         className="w-full h-full drop-shadow-2xl" 
         preserveAspectRatio="xMidYMid meet"
         style={{ pointerEvents: 'none' }}
+        role="img"
+        aria-label="Grafo de Rede Elétrica"
       >
-        <defs>
-          <filter id="glow-unifilar" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="3" result="blur"/>
-            <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-          </filter>
-        </defs>
-
         <g style={{ 
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`, 
           transformOrigin: 'center',
@@ -144,12 +147,11 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
             const cableInfo = cables[node.cable];
             
             const isOverloaded = (res?.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
-            const isCriticalCqt = (res?.accumulatedCqt || 0) > 6;
             const isHighRise = (res?.solarVoltageRise || 0) > 5;
             const hasReverse = (res?.netCurrentDay || 0) < 0;
 
             return (
-              <g key={`link-${node.id}`} className="group/link">
+              <g key={`link-${node.id}`}>
                 <line 
                   x1={start.x} y1={start.y} x2={end.x} y2={end.y} 
                   stroke={isOverloaded ? '#ef4444' : isHighRise ? '#f97316' : '#3b82f6'} 
@@ -201,7 +203,6 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
         </g>
       </svg>
 
-      {/* Painel Flutuante de Edição Rápida */}
       {interactive && selectedNode && (
         <div className="absolute right-10 top-24 w-80 glass-dark rounded-[32px] p-7 border border-white/60 shadow-2xl animate-in slide-in-from-right-10 duration-500 z-50">
           <header className="flex justify-between items-center mb-6">
@@ -209,10 +210,10 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({
                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl font-black">{selectedNode.id.charAt(0)}</div>
                <div className="flex flex-col">
                   <span className="text-xs font-black text-gray-800 uppercase tracking-tighter">Ponto {selectedNode.id}</span>
-                  <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{resSelected?.calculatedLoad?.toFixed(1)}A | {resSelected?.accumulatedCqt?.toFixed(2)}%</span>
+                  <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{resSelected?.calculatedLoad?.toFixed(1) ?? 0}A | {resSelected?.accumulatedCqt?.toFixed(2) ?? 0}%</span>
                </div>
             </div>
-            <button onClick={() => setSelectedNodeId(null)} className="text-gray-400 hover:text-red-500 font-black">✕</button>
+            <button aria-label="Fechar Painel" onClick={() => setSelectedNodeId(null)} className="text-gray-400 hover:text-red-500 font-black">✕</button>
           </header>
 
           <div className="flex flex-col gap-4">
