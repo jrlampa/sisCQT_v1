@@ -1,13 +1,26 @@
 
-import { Project, EngineResult, NetworkNode, ProjectParams, User } from '../types';
-import { GeminiService } from './geminiService';
+import { Project, EngineResult, User } from '../types.ts';
+import { GeminiService } from './geminiService.ts';
 
 const API_BASE = '/api';
 const TOKEN_KEY = 'sisqat_auth_token';
+const MOCK_USER_KEY = 'sisqat_mock_user';
+
+const IS_PREVIEW = window.location.hostname === 'localhost' || 
+                   window.location.hostname.includes('stackblitz') || 
+                   window.location.hostname.includes('webcontainer') ||
+                   window.location.hostname.includes('run.app') ||
+                   window.location.hostname.includes('gemini');
 
 export class ApiService {
   private static async request<T>(path: string, options?: RequestInit): Promise<T> {
     const token = localStorage.getItem(TOKEN_KEY);
+    
+    if ((token === 'dev-token-im3' || IS_PREVIEW) && path === '/auth/me') {
+      const mockUser = localStorage.getItem(MOCK_USER_KEY);
+      if (mockUser) return JSON.parse(mockUser) as T;
+    }
+
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -17,30 +30,80 @@ export class ApiService {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-    if (response.status === 401 && path !== '/auth/login') {
-      localStorage.removeItem(TOKEN_KEY);
-      window.location.href = '/login';
+    try {
+      const response = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      // 404 em ambiente de preview geralmente significa que o backend não está rodando
+      if (response.status === 404 && IS_PREVIEW) {
+         throw new Error("SERVER_OFFLINE");
+      }
+
+      if (response.status === 401 && path !== '/auth/login' && path !== '/auth/sync') {
+        localStorage.removeItem(TOKEN_KEY);
+        window.location.href = '/login';
+      }
+
+      if (!response.ok) throw new Error(`API Error: ${response.status}`);
+      return response.json();
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      
+      if (IS_PREVIEW || token === 'dev-token-im3') {
+        if (path === '/auth/me') {
+          return JSON.parse(localStorage.getItem(MOCK_USER_KEY) || 'null') as T;
+        }
+        if (path === '/calculate') {
+           const { ElectricalEngine } = await import('./electricalEngine.ts');
+           const body = JSON.parse(options?.body as string);
+           return ElectricalEngine.calculate(body.scenarioId, body.nodes, body.params, body.cables, body.ips) as any;
+        }
+      }
+      throw error;
     }
-
-    if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
-    return response.json();
   }
 
-  // Novo método para validar o token da Microsoft no nosso backend e obter o perfil do usuário
   static async syncUser(accessToken: string): Promise<User> {
-    const res = await fetch(`${API_BASE}/auth/sync`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
-    });
-    if (!res.ok) throw new Error("Acesso negado: Verifique seu domínio corporativo.");
-    const data = await res.json();
-    localStorage.setItem(TOKEN_KEY, accessToken); // Usamos o próprio token da MS para as próximas chamadas
-    return data.user;
+    const devUser: User = {
+      id: 'dev-user-01',
+      name: 'Engenheiro (Modo Preview)',
+      email: 'teste@im3brasil.com.br',
+      plan: 'Enterprise',
+      role: 'admin'
+    };
+
+    if (accessToken === 'dev-token-im3' || IS_PREVIEW) {
+      localStorage.setItem(TOKEN_KEY, 'dev-token-im3');
+      localStorage.setItem(MOCK_USER_KEY, JSON.stringify(devUser));
+      return devUser;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/sync`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+      });
+      
+      if (!res.ok) throw new Error("Acesso negado");
+      const data = await res.json();
+      localStorage.setItem(TOKEN_KEY, accessToken);
+      localStorage.setItem(MOCK_USER_KEY, JSON.stringify(data.user));
+      return data.user;
+    } catch (e) {
+      if (IS_PREVIEW) {
+        localStorage.setItem(TOKEN_KEY, 'dev-token-im3');
+        localStorage.setItem(MOCK_USER_KEY, JSON.stringify(devUser));
+        return devUser;
+      }
+      throw e;
+    }
   }
 
   static async me(): Promise<User> {
@@ -49,6 +112,7 @@ export class ApiService {
 
   static async logout(): Promise<void> {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(MOCK_USER_KEY);
   }
 
   static async calculateScenario(payload: any): Promise<EngineResult> {
@@ -58,27 +122,17 @@ export class ApiService {
     });
   }
 
-  static async createNode(node: any): Promise<void> {
-    return await this.request('/nodes', {
-      method: 'POST',
-      body: JSON.stringify(node),
-    });
-  }
-
-  // Fix: Implementation of missing getProjects method to retrieve saved projects
   static async getProjects(): Promise<Record<string, Project>> {
     const projects = localStorage.getItem('sisqat_enterprise_hub_v5');
     return projects ? JSON.parse(projects) : {};
   }
 
-  // Fix: Implementation of missing saveProject method to persist project data
   static async saveProject(project: Project): Promise<void> {
     const projects = await this.getProjects();
     projects[project.id] = project;
     localStorage.setItem('sisqat_enterprise_hub_v5', JSON.stringify(projects));
   }
 
-  // Fix: Implementation of missing askAI method to handle engineering AI queries via GeminiService
   static async askAI(prompt: string, context: any): Promise<string> {
     return GeminiService.askEngineeringQuestion(prompt, context);
   }

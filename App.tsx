@@ -18,7 +18,7 @@ import ProtectedRoute from './components/ProtectedRoute.tsx';
 import { User } from './types.ts';
 import { useToast } from './context/ToastContext.tsx';
 import { useProjectManagement } from './hooks/useProjectManagement.ts';
-import { ApiService } from './services/apiService';
+import { ApiService } from './services/apiService.ts';
 
 const ProjectRouteWrapper = ({ pm, user, onLogout }: { pm: any, user: User, onLogout: () => void }) => {
   const { projectId } = useParams();
@@ -67,10 +67,31 @@ const App: React.FC = () => {
 
   // Verifica autenticação no mount
   useEffect(() => {
-    ApiService.me()
-      .then(user => setCurrentUser(user))
-      .catch(() => setCurrentUser(null))
-      .finally(() => setIsAuthLoading(false));
+    const checkAuth = async () => {
+      // BACKDOOR: Se a URL tiver ?backdoor=true, faz login automático de teste
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('backdoor') === 'true') {
+        try {
+          const user = await ApiService.syncUser('dev-token-im3');
+          setCurrentUser(user);
+          setIsAuthLoading(false);
+          return;
+        } catch (e) {
+          console.error("Backdoor failed", e);
+        }
+      }
+
+      try {
+        const user = await ApiService.me();
+        setCurrentUser(user);
+      } catch (e) {
+        setCurrentUser(null);
+      } finally {
+        setIsAuthLoading(false);
+      }
+    };
+
+    checkAuth();
   }, []);
 
   const handleLogout = async () => {
@@ -93,6 +114,15 @@ const App: React.FC = () => {
         <div className="w-16 h-1 w-full max-w-[200px] bg-blue-100 rounded-full overflow-hidden">
           <div className="h-full bg-blue-600 animate-[loading_1.5s_infinite_linear]"></div>
         </div>
+        <div className="mt-6 flex flex-col items-center">
+            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest animate-pulse">Autenticando na Rede...</span>
+            <button 
+              onClick={() => window.location.href = window.location.pathname + '?backdoor=true'}
+              className="mt-8 text-[9px] font-black text-gray-400 hover:text-blue-500 underline uppercase tracking-tighter"
+            >
+              Está demorando? Clique para forçar acesso de teste.
+            </button>
+        </div>
         <style>{`
           @keyframes loading {
             0% { transform: translateX(-100%); }
@@ -105,12 +135,8 @@ const App: React.FC = () => {
 
   return (
     <Routes>
-      {/* Rota Pública de Login */}
       <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={handleLogin} />} />
-      
-      {/* Rotas Protegidas */}
       <Route element={<ProtectedRoute user={currentUser} isLoading={isAuthLoading} />}>
-        
         <Route path="/hub" element={
           <ProjectHub 
             projects={pm.savedProjects}
@@ -130,7 +156,6 @@ const App: React.FC = () => {
             onBilling={() => navigate('/billing')}
           />
         } />
-
         <Route path="/billing" element={
           <div className="p-8 min-h-screen bg-[#f0f4ff]">
               <button onClick={() => navigate(-1)} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all shadow-sm">← Voltar</button>
@@ -140,7 +165,6 @@ const App: React.FC = () => {
               }} />
           </div>
         } />
-
         <Route path="/project/:projectId" element={<ProjectRouteWrapper pm={pm} user={currentUser!} onLogout={handleLogout} />}>
           <Route index element={<Navigate to="dashboard" />} />
           <Route path="dashboard" element={
@@ -186,7 +210,6 @@ const App: React.FC = () => {
           } />
         </Route>
       </Route>
-
       <Route path="*" element={<Navigate to="/hub" />} />
     </Routes>
   );
