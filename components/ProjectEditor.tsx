@@ -23,6 +23,10 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
   const isOverloaded = !isTrafo && (resNode?.calculatedLoad || 0) > (cableData?.ampacity || 0);
   const profileData = (PROFILES as any)[profile] || PROFILES["Massivos"];
   const isCriticalCqt = !isTrafo && (resNode?.accumulatedCqt ?? 0) > profileData.cqtMax;
+  
+  // Detector de Fluxo Reverso e Elevação de Tensão
+  const isReverseFlow = !isTrafo && (resNode?.netCurrentDay || 0) < 0;
+  const isHighVoltageRise = !isTrafo && (resNode?.solarVoltageRise || 0) > 5;
 
   // Análise de Fase Instantânea
   const has3PhaseLoad = node.loads.tri > 0 || node.loads.pointQty > 0 || node.loads.pointKva > 0;
@@ -54,9 +58,19 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
   };
 
   return (
-    <tr className={`hover:bg-white/80 transition-all group border-b border-white/10 even:bg-white/10 ${isChanged ? 'bg-blue-50/40' : ''} ${isTrafo ? 'bg-blue-50/20' : ''} ${isPhaseMismatch ? 'bg-red-50/20' : ''}`}>
+    <tr className={`hover:bg-white/80 transition-all group border-b border-white/10 even:bg-white/10 
+      ${isChanged ? 'bg-blue-50/40' : ''} 
+      ${isTrafo ? 'bg-blue-50/20' : ''} 
+      ${isPhaseMismatch ? 'bg-red-50/20' : ''}
+      ${isReverseFlow ? 'bg-orange-50/20 shadow-inner' : ''}`}>
+      
       {/* ID do Ponto */}
-      <td className="px-6 py-6 min-w-[120px]">
+      <td className="px-6 py-6 min-w-[120px] relative">
+        {isReverseFlow && (
+          <div className="absolute top-2 left-2 flex gap-1 animate-in slide-in-from-top-1 duration-500">
+            <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse shadow-[0_0_8px_#f97316]"></span>
+          </div>
+        )}
         {isTrafo ? (
           <div className="px-4 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-black uppercase shadow-sm border border-blue-200 inline-block w-full text-center">
             {node.id}
@@ -156,7 +170,7 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
           </div>
           <div className="flex flex-col items-center gap-0.5">
             <input 
-              className="w-14 h-8 rounded-lg bg-white/90 border border-yellow-100 text-center text-[10px] font-black text-orange-600 outline-none" 
+              className={`w-14 h-8 rounded-lg bg-white/90 border text-center text-[10px] font-black text-orange-600 outline-none ${node.loads.solarKva > 0 ? 'border-orange-300' : 'border-yellow-100'}`} 
               type="text" 
               value={localSolarKva} 
               onChange={e => setLocalSolarKva(e.target.value)}
@@ -205,15 +219,22 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
 
       {/* Corrente Calculada */}
       <td className="px-6 py-6 text-center">
-        <div className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-[11px] ${isOverloaded ? 'bg-red-500 text-white shadow-lg shadow-red-200 animate-pulse' : 'text-[#004a80] bg-blue-50'}`}>
+        <div className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-[11px] 
+          ${isOverloaded ? 'bg-red-500 text-white shadow-lg shadow-red-200 animate-pulse' : 
+            isReverseFlow ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'text-[#004a80] bg-blue-50'}`}>
+          {isReverseFlow && <span className="mr-1">🔄</span>}
           {(resNode?.calculatedLoad || 0).toFixed(1)}A
         </div>
       </td>
 
-      {/* CQT Acumulada */}
+      {/* CQT Acumulada / Rise */}
       <td className="px-6 py-6 text-center">
-        <div className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-[11px] ${isCriticalCqt ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : isTrafo ? 'text-blue-400 bg-blue-50/30' : 'text-green-600 bg-green-50'}`}>
-          {isTrafo ? 'REF' : `${(resNode?.accumulatedCqt ?? 0).toFixed(2)}%`}
+        <div className={`inline-flex flex-col items-center px-3 py-1.5 rounded-xl font-black text-[11px] 
+          ${isHighVoltageRise ? 'bg-orange-600 text-white shadow-lg' : 
+            isCriticalCqt ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 
+            isTrafo ? 'text-blue-400 bg-blue-50/30' : 'text-green-600 bg-green-50'}`}>
+          <span>{isTrafo ? 'REF' : `${(resNode?.accumulatedCqt ?? 0).toFixed(2)}%`}</span>
+          {isHighVoltageRise && <span className="text-[7px] uppercase mt-0.5 leading-none">Rise: +{(resNode?.solarVoltageRise || 0).toFixed(2)}%</span>}
         </div>
       </td>
 
@@ -283,7 +304,6 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
     if (onRecalculate) {
       setIsRecalculating(true);
       await onRecalculate();
-      // Pequeno delay extra para o usuário "sentir" o trabalho da engine
       setTimeout(() => setIsRecalculating(false), 500);
     }
   };
@@ -352,6 +372,8 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
 
   const paginatedNodes = useMemo(() => filteredNodes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage), [filteredNodes, currentPage, itemsPerPage]);
 
+  const reverseFlowWarning = result?.warnings.find(w => w.includes("INVERSÃO DE FLUXO"));
+
   return (
     <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-4 duration-500 pb-12 relative">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/40 p-6 rounded-[32px] border border-white/60 shadow-sm">
@@ -364,12 +386,8 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
             onClick={handleRecalculateClick} 
             disabled={isRecalculating}
             className={`px-6 py-3 rounded-2xl font-black shadow-lg transition-all text-[10px] uppercase tracking-widest flex items-center gap-2 ${isRecalculating ? 'bg-blue-100 text-blue-400' : 'bg-white text-blue-600 border border-blue-100 hover:bg-blue-50'}`}
-            title="Sincronizar motor de cálculo manualmente"
           >
             <span className={isRecalculating ? 'animate-spin' : ''}>🔄</span> {isRecalculating ? 'Sincronizando...' : 'Recalcular'}
-          </button>
-          <button onClick={() => setShowTopology(!showTopology)} className={`px-6 py-3 rounded-2xl font-black shadow-lg transition-all text-[10px] uppercase tracking-widest ${showTopology ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600 border border-indigo-100'}`}>
-            {showTopology ? 'Ocultar Diagrama' : 'Ver Unifilar'}
           </button>
           <button onClick={handleOptimizeClick} disabled={isOptimizing} className={`px-6 py-3 rounded-2xl font-black shadow-lg transition-all text-[10px] uppercase tracking-widest ${isOptimizing ? 'bg-orange-500 text-white animate-pulse' : 'bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-100'}`}>
             {isOptimizing ? 'Otimizando...' : 'Auto-Dimensionar'}
@@ -378,34 +396,25 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
         </div>
       </header>
 
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-md bg-blue-900/5">
-          <div className="glass-dark p-10 rounded-[40px] shadow-2xl border border-white/80 w-full max-w-md animate-in zoom-in-95">
-             <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-6">Novo Ponto na Rede</h3>
-             <div className="flex flex-col gap-4">
-                <p className="text-xs text-gray-500 font-medium">Deseja informar coordenadas geográficas para sincronização com o GIS?</p>
-                <div className="grid grid-cols-2 gap-4">
-                   <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Latitude</label>
-                      <input className="bg-white border border-gray-100 px-4 py-2.5 rounded-xl text-sm font-bold outline-none focus:border-blue-400" placeholder="-22.90..." value={newNodeCoords.lat} onChange={e => setNewNodeCoords({...newNodeCoords, lat: e.target.value})} />
-                   </div>
-                   <div className="flex flex-col gap-1">
-                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Longitude</label>
-                      <input className="bg-white border border-gray-100 px-4 py-2.5 rounded-xl text-sm font-bold outline-none focus:border-blue-400" placeholder="-43.17..." value={newNodeCoords.lng} onChange={e => setNewNodeCoords({...newNodeCoords, lng: e.target.value})} />
-                   </div>
-                </div>
-                <div className="flex gap-3 mt-4">
-                   <button onClick={() => setIsAddModalOpen(false)} className="flex-1 py-3 bg-gray-50 text-gray-400 font-black text-[10px] uppercase tracking-widest rounded-xl">Cancelar</button>
-                   <button onClick={confirmAddNode} className="flex-2 px-8 py-3 bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl shadow-lg">Confirmar Inclusão</button>
-                </div>
-             </div>
-          </div>
+      {/* Alerta de Fluxo Reverso Customizado */}
+      {reverseFlowWarning && (
+        <div className="bg-orange-50 border border-orange-200 rounded-[32px] p-8 flex gap-6 items-start shadow-xl shadow-orange-100/50 animate-in fade-in zoom-in-95 duration-700">
+           <div className="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white text-3xl shadow-lg shrink-0">🔄</div>
+           <div className="flex-1">
+              <h3 className="text-lg font-black text-orange-800 uppercase tracking-tighter mb-2">Diagnóstico de Engenharia: Inversão de Potência</h3>
+              <p className="text-xs text-orange-700 leading-relaxed font-medium">
+                {reverseFlowWarning}
+              </p>
+              <div className="mt-4 flex gap-4">
+                 <div className="px-3 py-1 bg-white/60 border border-orange-200 rounded-lg text-[9px] font-black text-orange-600 uppercase">Impacto ESG: Positivo</div>
+                 <div className="px-3 py-1 bg-white/60 border border-orange-200 rounded-lg text-[9px] font-black text-orange-600 uppercase">Risco Proteção: Médio</div>
+              </div>
+           </div>
         </div>
       )}
 
       {showTopology && <div className="animate-in slide-in-from-top-4 duration-500"><UnifilarDiagram nodes={project.nodes} result={result!} cables={project.cables} /></div>}
 
-      {/* Bloco de Gestão do Transformador - Layout Conforme Sketch */}
       <div className="bg-white/60 p-8 rounded-[32px] border border-white/80 shadow-sm">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
           <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Trafo (kVA)</label>
@@ -460,7 +469,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
       <div className="overflow-x-auto bg-white/40 rounded-[32px] border border-white/50 shadow-2xl relative">
         <table className="w-full text-left border-collapse min-w-[1200px]">
           <thead className="bg-[#f8faff]/50 text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-white/20">
-            <tr><th className="px-6 py-6">ID PONTO</th><th className="px-6 py-6 text-center">MONTANTE</th><th className="px-4 py-6 text-center">METROS</th><th className="px-6 py-6">CONDUTOR</th><th className="px-6 py-6 text-center bg-blue-50/10">DIVERSIFICADOS</th><th className="px-6 py-6 text-center bg-yellow-50/10">SOLAR</th><th className="px-6 py-6 text-center bg-indigo-50/10">CARGA ESP.</th><th className="px-6 py-6 text-center bg-orange-50/10">IP PUB.</th><th className="px-6 py-6 text-center text-[#004a80]">CARGA (A)</th><th className="px-6 py-6 text-center">CQT %</th><th className="px-4 py-6"></th></tr>
+            <tr><th className="px-6 py-6">ID PONTO</th><th className="px-6 py-6 text-center">MONTANTE</th><th className="px-4 py-6 text-center">METROS</th><th className="px-6 py-6">CONDUTOR</th><th className="px-6 py-6 text-center bg-blue-50/10">DIVERSIFICADOS</th><th className="px-6 py-6 text-center bg-yellow-50/10">SOLAR</th><th className="px-6 py-6 text-center bg-indigo-50/10">CARGA ESP.</th><th className="px-6 py-6 text-center bg-orange-50/10">IP PUB.</th><th className="px-6 py-6 text-center text-[#004a80]">CARGA (A)</th><th className="px-6 py-6 text-center">CQT % / Rise</th><th className="px-4 py-6"></th></tr>
           </thead>
           <tbody className="divide-y divide-white/10">
             {paginatedNodes.map((node) => (

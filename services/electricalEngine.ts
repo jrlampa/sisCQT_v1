@@ -65,8 +65,6 @@ export class ElectricalEngine {
       totalPointKva += pointKva;
       totalInstalledKva += solarKva;
 
-      // Se incluir impacto GD no QT, subtraímos parte da GD da carga nominal (pico noturno vs geração diurna)
-      // Usamos 50% da GD como contribuição conservadora para redução de QT se o botão estiver ativo
       const qtLoadKva = params.includeGdInQt ? (demandKva + ipKva + pointKva - (solarKva * 0.5)) : (demandKva + ipKva + pointKva);
 
       return { kva: qtLoadKva, solar: solarKva, rawKva: demandKva + ipKva + pointKva };
@@ -100,7 +98,6 @@ export class ElectricalEngine {
         node.jouleLossWatts = 0;
         node.solarVoltageRise = 0;
       } else {
-        // Cenário 1: Pico de Consumo (Considerando botão de GD se ativo)
         const nightAmps = node.accumulatedKva / (1.732 * 0.380);
         if (nightAmps > cableData.ampacity && cableData.ampacity > 0) {
           warnings.push(`🔥 Sobrecarga em ${node.id}: ${nightAmps.toFixed(1)}A > ${cableData.ampacity}A.`);
@@ -111,7 +108,7 @@ export class ElectricalEngine {
         node.calculatedCqt = segmentCqt;
         node.accumulatedCqt = parentAccumulatedCqt + segmentCqt;
 
-        // Cenário 2: Pico de Geração (Dia)
+        // Análise de Geração (Fluxo Reverso)
         const dayDemandKva = (node.accumulatedKva - (totalIpKva / processedNodes.length)) * this.DAY_LOAD_FACTOR;
         const netDayKva = dayDemandKva - node.accumulatedSolarKva;
         const dayAmps = netDayKva / (1.732 * 0.380);
@@ -120,13 +117,17 @@ export class ElectricalEngine {
         node.solarVoltageRise = parentVoltageRise + segmentRise;
         node.netCurrentDay = dayAmps;
 
-        if (node.solarVoltageRise > 5) {
-          warnings.push(`☀️ Risco de Sobretensão em ${node.id}: +${node.solarVoltageRise.toFixed(2)}% ao meio-dia.`);
-        }
-
         if (dayAmps < 0) {
           hasReverseFlow = true;
           maxReverseAmps = Math.max(maxReverseAmps, Math.abs(dayAmps));
+          
+          if (!warnings.some(w => w.includes("INVERSÃO DE FLUXO"))) {
+             warnings.push(`🔄 INVERSÃO DE FLUXO DETECTADA: O ponto ${node.id} apresenta injeção líquida de potência. CAUSA: Excedente de geração fotovoltaica local (GD > Carga). CONSEQ. INTERNAS: Elevação do gradiente de tensão (Profile Rise), stress térmico por bidirecionalidade e risco de descoordenação de elos fusíveis. CONSEQ. SISTÊMICAS: Interferência na regulação de tensão da Média Tensão (Subestação), aumento de perdas no núcleo do transformador por distorção de fluxo e potencial impacto na vida útil de reguladores de tensão a montante.`);
+          }
+        }
+
+        if (node.solarVoltageRise > 5) {
+          warnings.push(`☀️ Risco de Sobretensão Crítica em ${node.id}: +${node.solarVoltageRise.toFixed(2)}% (Pico Solar).`);
         }
         
         maxVoltageRise = Math.max(maxVoltageRise, node.solarVoltageRise);
@@ -141,7 +142,9 @@ export class ElectricalEngine {
         processedNodes[idx] = { 
           ...node, 
           calculatedLoad: node.accumulatedKva / (1.732 * 0.380),
-          jouleLossWatts: node.jouleLossWatts 
+          jouleLossWatts: node.jouleLossWatts,
+          solarVoltageRise: node.solarVoltageRise,
+          netCurrentDay: node.netCurrentDay
         };
       }
       node.children.forEach(child => calculatePhysics(child, node.accumulatedCqt || 0, node.solarVoltageRise || 0));
