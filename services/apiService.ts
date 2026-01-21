@@ -1,4 +1,5 @@
-import { Project, EngineResult, User, NetworkNode, ProjectParams } from '../types.ts';
+
+import { Project, EngineResult, User, NetworkNode } from '../types.ts';
 import { GeminiService } from './geminiService.ts';
 
 const API_BASE = '/api';
@@ -16,12 +17,21 @@ export class ApiService {
 
     try {
       const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+      
       if (response.status === 401) {
-        localStorage.removeItem(TOKEN_KEY);
-        window.location.href = '/login';
+        // Se estivermos no hub ou dashboard e der 401, limpa e desloga
+        if (!window.location.pathname.includes('/login')) {
+            localStorage.removeItem(TOKEN_KEY);
+            window.location.href = '/login';
+        }
         throw new Error("Sessão expirada");
       }
-      if (!response.ok) throw new Error(`Erro API: ${response.status}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro API: ${response.status}`);
+      }
+      
       return response.json();
     } catch (error) {
       console.error(`Falha na requisição ${path}:`, error);
@@ -30,11 +40,13 @@ export class ApiService {
   }
 
   static async syncUser(accessToken: string): Promise<User> {
+    // Primeiro salvamos o token para que a requisição de sync já o envie no header se necessário,
+    // ou o backend pode receber via body no post de sync.
+    localStorage.setItem(TOKEN_KEY, accessToken);
     const res = await this.request<{user: User}>('/auth/sync', {
       method: 'POST',
       body: JSON.stringify({ token: accessToken })
     });
-    localStorage.setItem(TOKEN_KEY, accessToken);
     return res.user;
   }
 
@@ -46,10 +58,9 @@ export class ApiService {
     localStorage.removeItem(TOKEN_KEY);
   }
 
-  // --- Project CRUD (Backend First) ---
   static async getProjects(): Promise<Record<string, Project>> {
     const list = await this.request<Project[]>('/projects');
-    return list.reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
+    return (list || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
   }
 
   static async saveProject(project: Project): Promise<void> {
@@ -63,7 +74,6 @@ export class ApiService {
     await this.request(`/projects/${id}`, { method: 'DELETE' });
   }
 
-  // --- Engine Calls (Smart Backend) ---
   static async calculateScenario(payload: any): Promise<EngineResult> {
     return this.request<EngineResult>('/calculate', {
       method: 'POST',
@@ -71,6 +81,7 @@ export class ApiService {
     });
   }
 
+  // Added optimizeScenario method to fix TypeScript error in useProjectManagement hook
   static async optimizeScenario(payload: any): Promise<NetworkNode[]> {
     return this.request<NetworkNode[]>('/optimize', {
       method: 'POST',
