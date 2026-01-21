@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Project, EngineResult, Scenario, ProjectParams, NetworkNode } from '../types';
 import { ApiService } from '../services/apiService';
@@ -26,7 +25,8 @@ export function useProjectManagement() {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       
       saveTimeoutRef.current = setTimeout(() => {
-        Object.values(savedProjects).forEach(p => ApiService.saveProject(p));
+        // Fix: Explicitly cast Object.values to Project[] to resolve unknown type inference on line 29
+        (Object.values(savedProjects) as Project[]).forEach(p => ApiService.saveProject(p));
       }, 1000); 
     }
     return () => {

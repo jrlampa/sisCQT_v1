@@ -2,9 +2,11 @@
 import { NetworkNode, ProjectParams, EngineResult, MonteCarloResult, SustainabilityMetrics, GdImpactMetrics } from '../types.ts';
 import { DMDI_TABLES, PROFILES } from '../constants.ts';
 
+/**
+ * Interface estendida para processamento interno da árvore de rede.
+ */
 interface TreeNode extends NetworkNode {
   children: TreeNode[];
-  // Separação de cargas para cálculo de momentos preciso conforme normas de engenharia
   subtreeTotalKva: number;          // Toda carga abaixo do nó (incluindo ele próprio)
   subtreeTotalSolarKva: number;     // Toda carga solar abaixo do nó
   nodeDistributedKva: number;       // Carga DMDI (Residencial) do próprio nó
@@ -19,6 +21,10 @@ export class ElectricalEngine {
   private static readonly LOAD_LOSS_FACTOR = 0.25;
   private static readonly DAY_LOAD_FACTOR = 0.30; 
 
+  /**
+   * Executa o cálculo de fluxo de carga e queda de tensão (CQT).
+   * Segue o princípio de não arredondar valores durante o acúmulo para evitar erros de precisão IEEE 754.
+   */
   static calculate(
     scenarioId: string, 
     nodes: NetworkNode[], 
@@ -29,7 +35,7 @@ export class ElectricalEngine {
     const processedNodes: NetworkNode[] = JSON.parse(JSON.stringify(nodes));
     const warnings: string[] = [];
     
-    // 1. Construção da Árvore
+    // 1. Construção do Mapeamento de Árvore
     const nodeMap = new Map<string, TreeNode>();
     processedNodes.forEach(node => {
       nodeMap.set(node.id, { 
@@ -44,17 +50,17 @@ export class ElectricalEngine {
     });
 
     const trafoNode = nodeMap.get('TRAFO');
-    if (!trafoNode) throw new Error("Nó 'TRAFO' não encontrado.");
+    if (!trafoNode) throw new Error("Nó 'TRAFO' não encontrado. Topologia inválida.");
 
     nodeMap.forEach(node => {
       if (node.id !== 'TRAFO') {
         const parent = nodeMap.get(node.parentId);
         if (parent) parent.children.push(node);
-        else warnings.push(`⚠️ Nó órfão detectado: ${node.id}`);
+        else warnings.push(`⚠️ Nó órfão detectado: ${node.id} não possui pai válido.`);
       }
     });
 
-    // 2. Cálculo de DMDI Global
+    // 2. Determinação do Fator DMDI (Fator de Diversidade)
     const totalResidences = processedNodes.reduce((acc, n) => 
         acc + (n.loads?.mono || 0) + (n.loads?.bi || 0) + (n.loads?.tri || 0), 0);
 
@@ -66,18 +72,18 @@ export class ElectricalEngine {
       globalDmdiFactor = (row[params.manualClass as keyof typeof row] as number) || 0;
     }
 
-    // 3. Acumulação de Cargas (Bottom-Up)
+    // 3. Fase Bottom-Up: Acumulação de Cargas Reais
     const accumulateLoads = (node: TreeNode): { total: number, solar: number } => {
-      // Carga Distribuída (Residencial - DMDI)
+      // Carga Distribuída: Residencial que se distribui ao longo do vão
       const resQty = (node.loads?.mono || 0) + (node.loads?.bi || 0) + (node.loads?.tri || 0);
       node.nodeDistributedKva = resQty * globalDmdiFactor;
       
-      // Carga Concentrada (IP + Pontos Especiais/Pontuais)
+      // Carga Concentrada: IP e Pontuais que estão localizadas no final do vão (nó)
       const ipKva = (node.loads?.ipQty || 0) * (ipCatalog[node.loads?.ipType] || 0);
       const pointKva = node.loads?.pointKva || 0;
       node.nodeConcentratedKva = ipKva + pointKva;
       
-      // Geração Solar
+      // Geração Solar Local
       node.nodeSolarKva = node.loads?.solarKva || 0;
 
       const childrenTotals = node.children.reduce((acc, child) => {
@@ -85,7 +91,7 @@ export class ElectricalEngine {
         return { total: acc.total + res.total, solar: acc.solar + res.solar };
       }, { total: 0, solar: 0 });
 
-      // Total acumulado que passa por este nó (incluindo ele mesmo)
+      // Total acumulado que passa por este nó
       node.subtreeTotalKva = node.nodeDistributedKva + node.nodeConcentratedKva + childrenTotals.total;
       node.subtreeTotalSolarKva = node.nodeSolarKva + childrenTotals.solar;
 
@@ -94,7 +100,7 @@ export class ElectricalEngine {
 
     accumulateLoads(trafoNode);
 
-    // 4. Cálculo Físico (Top-Down)
+    // 4. Fase Top-Down: Cálculo Físico (Queda de Tensão e Perdas)
     let totalJouleLossWatts = 0;
     let maxVoltageRise = 0;
     let maxReverseAmps = 0;
@@ -108,28 +114,29 @@ export class ElectricalEngine {
         node.accumulatedCqt = 0;
         node.solarVoltageRise = 0;
       } else {
-        // --- LÓGICA DO MÉTODO DOS MOMENTOS (CQT - Pico Noturno) ---
-        // Carga que "atravessa" o trecho para alimentar filhos (Fator 1.0)
-        const loadBeyond = node.subtreeTotalKva - (node.nodeDistributedKva + node.nodeConcentratedKva);
+        // --- MÉTODO DOS MOMENTOS (CQT) ---
+        // LÓGICA CORRETA:
+        // Cargas a Jusante (atravessam o trecho): Fator 1.0
+        // Carga Concentrada no Nó (IP/Pontual): Fator 1.0
+        // Carga Distribuída do Nó (Residencial): Fator 0.5
         
-        // Tratamento de GD na queda de tensão se habilitado
+        const loadToChildren = node.subtreeTotalKva - (node.nodeDistributedKva + node.nodeConcentratedKva);
+        
+        // Aplicação de GD na QT se habilitado (subtração vetorial simplificada)
         const effectiveDistributed = params.includeGdInQt 
           ? Math.max(0, node.nodeDistributedKva - (node.nodeSolarKva * 0.5))
           : node.nodeDistributedKva;
 
-        // Momento de Carga do Trecho:
-        // (Cargas Jusante [1.0] + Carga Concentrada no Fim [1.0]) + (Carga Distribuída no Próprio Trecho [0.5])
-        const momentKva = (loadBeyond + node.nodeConcentratedKva) + (effectiveDistributed * 0.5);
+        const momentKva = (loadToChildren + node.nodeConcentratedKva) + (effectiveDistributed * 0.5);
         const segmentCqt = momentKva * distHm * cableData.coef;
         
         node.accumulatedCqt = parentCqt + segmentCqt;
 
-        // --- CÁLCULO DE RISE (Elevação de Tensão - Pico Solar) ---
-        // Consideramos fator de carga diurno para subtrair da geração solar
+        // --- CÁLCULO DE RISE (ELEVAÇÃO DE TENSÃO POR GD) ---
         const dayDemandKva = node.subtreeTotalKva * ElectricalEngine.DAY_LOAD_FACTOR;
         const netDayKva = dayDemandKva - node.subtreeTotalSolarKva;
         
-        // No fluxo reverso, tratamos a injeção como concentrada para margem de segurança
+        // Rise assume pior caso: fluxo reverso concentrado (Fator 1.0)
         const segmentRise = Math.abs(Math.min(0, netDayKva)) * distHm * cableData.coef;
         node.solarVoltageRise = parentRise + segmentRise;
         node.netCurrentDay = netDayKva / (1.732 * 0.380);
@@ -140,18 +147,17 @@ export class ElectricalEngine {
         maxVoltageRise = Math.max(maxVoltageRise, node.solarVoltageRise);
 
         // --- PERDAS JOULE ---
-        // Corrente real que percorre o condutor no pico noturno
         const amps = node.subtreeTotalKva / (1.732 * 0.380);
         const segmentLossWatts = 3 * (cableData.r * distKm) * Math.pow(Math.max(0, amps), 2);
         node.jouleLossWatts = segmentLossWatts;
         totalJouleLossWatts += segmentLossWatts;
 
         if (amps > cableData.ampacity && cableData.ampacity > 0) {
-          warnings.push(`🔥 Sobrecarga em ${node.id}: ${amps.toFixed(1)}A > ${cableData.ampacity}A`);
+          warnings.push(`🔥 Sobrecarga em ${node.id}: ${amps}A > ${cableData.ampacity}A`);
         }
       }
 
-      // Sincronização com objeto de resultado
+      // Sincronização sem arredondamentos intermediários
       const idx = processedNodes.findIndex(n => n.id === node.id);
       if (idx !== -1) {
         processedNodes[idx] = { 
@@ -169,7 +175,7 @@ export class ElectricalEngine {
 
     calculatePhysics(trafoNode, 0, 0);
 
-    // Métricas Finais
+    // 5. Métricas de Sustentabilidade
     const annualEnergyLossKwh = (totalJouleLossWatts / 1000) * 8760 * ElectricalEngine.LOAD_LOSS_FACTOR;
     const annualFinancialLossBrl = annualEnergyLossKwh * ElectricalEngine.ENERGY_PRICE_BRL;
     const annualCo2Kg = annualEnergyLossKwh * ElectricalEngine.CO2_FACTOR_KG_KWH;
@@ -200,7 +206,7 @@ export class ElectricalEngine {
         maxVoltageRise,
         hasReverseFlow: maxReverseAmps > 0.5,
         reverseFlowAmps: maxReverseAmps,
-        selfConsumptionRate: trafoNode.subtreeTotalSolarKva > 0 ? 30 : 0 // Estimativa base
+        selfConsumptionRate: trafoNode.subtreeTotalSolarKva > 0 ? 30 : 0
       },
       warnings
     };
