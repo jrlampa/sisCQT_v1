@@ -25,18 +25,19 @@
             -webkit-font-smoothing: antialiased;
         }
 
+        /* Glassmorphism Classes */
         .glass {
             background: var(--glass-bg);
-            backdrop-filter: blur(20px) saturate(160%);
+            backdrop-filter: blur(16px) saturate(180%);
             border: 1px solid var(--glass-border);
             box-shadow: 0 8px 32px var(--glass-shadow);
         }
 
         .glass-dark {
             background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(30px) saturate(180%);
+            backdrop-filter: blur(24px) saturate(200%);
             border: 1px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.04);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.03);
         }
 
         .leaflet-container {
@@ -64,14 +65,13 @@
     "jszip": "https://esm.sh/jszip@3.10.1",
     "@azure/msal-browser": "https://esm.sh/@azure/msal-browser@3.28.0",
     "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.3.0?external=react,react-dom,@azure/msal-browser",
-    "path": "https://esm.sh/path-browserify@^1.0.1",
-    "express": "https://esm.sh/express-browserify@^1.0.0",
-    "@prisma/client": "https://esm.sh/@prisma/client@^5.10.2",
-    "url": "https://esm.sh/url@^0.11.4",
-    "jsonwebtoken": "https://esm.sh/jsonwebtoken@^9.0.2",
+    "jsonwebtoken": "https://esm.sh/jsonwebtoken@9.0.2",
+    "@prisma/client": "https://esm.sh/@prisma/client@5.10.2",
+    "express": "https://esm.sh/express-browserify@1.0.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
     "react/": "https://esm.sh/react@^19.2.3/",
-    "fs": "https://esm.sh/fs@^0.0.1-security"
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4"
   }
 }
 </script>

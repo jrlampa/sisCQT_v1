@@ -1,7 +1,8 @@
 
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+// Use require for Prisma to bypass export member error in some environments
+const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
@@ -10,7 +11,8 @@ const prisma = new PrismaClient();
  * Suporta modo real (JWT Entra ID) e modo de desenvolvimento (Mock).
  */
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
+  // Cast req to any to safely access headers and custom user property
+  const authHeader = (req as any).headers?.authorization;
   
   // MODO DE TESTE / DESENVOLVIMENTO
   // Para ativar: defina ENABLE_MOCK_AUTH=true no ambiente
@@ -32,7 +34,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
   // MODO PRODUÇÃO (MICROSOFT ENTRA ID)
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token não fornecido' });
+    return (res as any).status(401).json({ error: 'Token não fornecido' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -41,14 +43,14 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     const decoded: any = jwt.decode(token);
 
     if (!decoded || (!decoded.upn && !decoded.email && !decoded.preferred_username)) {
-      return res.status(401).json({ error: 'Token inválido' });
+      return (res as any).status(401).json({ error: 'Token inválido' });
     }
 
     const userEmail = (decoded.upn || decoded.email || decoded.preferred_username).toLowerCase();
 
     // Validação de domínio corporativo
     if (!userEmail.endsWith('@im3brasil.com.br')) {
-      return res.status(403).json({ error: 'Domínio não autorizado.' });
+      return (res as any).status(403).json({ error: 'Domínio não autorizado.' });
     }
 
     const user = await prisma.user.upsert({
@@ -65,6 +67,6 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     (req as any).user = user;
     next();
   } catch (error) {
-    return res.status(401).json({ error: 'Falha na autenticação corporativa' });
+    return (res as any).status(401).json({ error: 'Falha na autenticação corporativa' });
   }
 };

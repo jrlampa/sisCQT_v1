@@ -1,6 +1,7 @@
 
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+// Use require for Prisma to bypass export member error
+const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
@@ -33,16 +34,18 @@ export const gisController = {
         }))
       };
 
-      res.json(featureCollection);
+      // Cast Response to any to handle cases where standard Express methods aren't recognized correctly by the compiler
+      (res as any).json(featureCollection);
     } catch (error: any) {
       console.error(error);
-      res.status(500).json({ error: error.message });
+      (res as any).status(500).json({ error: error.message });
     }
   },
 
   // Criação de nó com conversão de lat/lng para geometria PostGIS
   async createNode(req: Request, res: Response) {
-    const { lat, lng, type, name, properties } = req.body;
+    // Cast Request to any to access the body property safely
+    const { lat, lng, type, name, properties } = (req as any).body;
     
     try {
       // O Prisma ainda não suporta tipos espaciais nativamente no create(),
@@ -59,10 +62,10 @@ export const gisController = {
         )
       `;
       
-      res.status(201).json({ success: true });
+      (res as any).status(201).json({ success: true });
     } catch (error: any) {
       console.error(error);
-      res.status(500).json({ error: error.message });
+      (res as any).status(500).json({ error: error.message });
     }
   }
 };

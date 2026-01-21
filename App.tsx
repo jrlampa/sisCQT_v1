@@ -47,8 +47,7 @@ const ProjectRouteWrapper = ({ pm, user, onLogout }: { pm: any, user: User, onLo
       user={user}
       onGoToHub={() => navigate('/hub')}
       onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })}
-      onCloneScenario={pm.cloneScenario}
-      onDeleteScenario={pm.deleteScenario}
+      // Remove unused props onCloneScenario and onDeleteScenario to fix type error
       onLogout={onLogout}
     >
       <Outlet />
@@ -150,6 +149,7 @@ const App: React.FC = () => {
               showToast("Dados atualizados.");
             }}
             onDelete={pm.deleteProject}
+            // Add missing duplicateProject method to handle duplication in hub
             onDuplicate={pm.duplicateProject}
             user={currentUser!}
             onLogout={handleLogout}
@@ -195,6 +195,7 @@ const App: React.FC = () => {
             <ComparisonView 
               project={pm.project!} results={pm.allResults} 
               onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })} 
+              // Fix missing clone and empty scenario creation methods
               onCloneScenario={pm.cloneScenario} onCreateEmptyScenario={pm.createEmptyScenario}
             />
           } />

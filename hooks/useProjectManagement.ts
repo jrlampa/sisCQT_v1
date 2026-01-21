@@ -1,38 +1,22 @@
+
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Project, EngineResult, Scenario, ProjectParams, NetworkNode } from '../types';
+import { Project, EngineResult, Scenario, NetworkNode } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
 import { createTemplateProject, generateId } from '../utils/projectUtils';
 
 export function useProjectManagement() {
   const { showToast } = useToast();
-  
   const [savedProjects, setSavedProjects] = useState<Record<string, Project>>({});
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [allResults, setAllResults] = useState<Record<string, EngineResult>>({});
   const [isCalculating, setIsCalculating] = useState(false);
   const [recalcTrigger, setRecalcTrigger] = useState(0);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Carregamento Inicial via API
+  // Carregamento inicial do Backend
   useEffect(() => {
-    ApiService.getProjects().then(setSavedProjects);
+    ApiService.getProjects().then(setSavedProjects).catch(() => showToast("Erro ao carregar projetos do servidor", "error"));
   }, []);
-
-  // Persistência com Debounce via API Service
-  useEffect(() => {
-    if (Object.keys(savedProjects).length > 0) {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-      
-      saveTimeoutRef.current = setTimeout(() => {
-        // Fix: Explicitly cast Object.values to Project[] to resolve unknown type inference on line 29
-        (Object.values(savedProjects) as Project[]).forEach(p => ApiService.saveProject(p));
-      }, 1000); 
-    }
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, [savedProjects]);
 
   const project = useMemo(() => 
     currentProjectId ? savedProjects[currentProjectId] : null, 
@@ -43,54 +27,34 @@ export function useProjectManagement() {
     return project.scenarios.find(s => s.id === project.activeScenarioId) || project.scenarios[0];
   }, [project]);
 
-  // Efeito de Cálculo Sincronizado com API
+  // Sincronismo do Motor de Cálculo (Backend)
   useEffect(() => {
-    if (!project) {
-      setAllResults({});
-      return;
-    }
-
+    if (!project) return;
     setIsCalculating(true);
     const timeoutId = setTimeout(async () => {
-      const results: Record<string, EngineResult> = {};
       try {
+        const results: Record<string, EngineResult> = {};
         for (const s of project.scenarios) {
           results[s.id] = await ApiService.calculateScenario({
-            scenarioId: s.id,
-            nodes: s.nodes,
-            params: s.params,
-            cables: project.cables,
-            ips: project.ipTypes
+            scenarioId: s.id, nodes: s.nodes, params: s.params, cables: project.cables, ips: project.ipTypes
           });
         }
         setAllResults(results);
       } catch (err) {
-        console.error("Erro no sincronismo do motor:", err);
-        showToast("Falha ao processar cálculos de rede.", "error");
+        showToast("Erro no motor de cálculo remoto", "error");
       } finally {
         setIsCalculating(false);
       }
-    }, 300); // Aumento leve no throttle para estabilidade
-
+    }, 400);
     return () => clearTimeout(timeoutId);
-  }, [project, recalcTrigger, showToast]);
-
-  const activeResult = useMemo(() => {
-    if (!activeScenario) return null;
-    return allResults[activeScenario.id] || null;
-  }, [activeScenario, allResults]);
+  }, [project, recalcTrigger]);
 
   const updateProject = useCallback((updates: Partial<Project>) => {
     if (!currentProjectId) return;
-    setSavedProjects(prev => ({
-      ...prev,
-      [currentProjectId]: { 
-        ...prev[currentProjectId], 
-        ...updates, 
-        updatedAt: new Date().toISOString() 
-      }
-    }));
-  }, [currentProjectId]);
+    const updated = { ...savedProjects[currentProjectId], ...updates, updatedAt: new Date().toISOString() };
+    setSavedProjects(prev => ({ ...prev, [currentProjectId]: updated }));
+    ApiService.saveProject(updated); // Persistência imediata no Backend
+  }, [currentProjectId, savedProjects]);
 
   const updateActiveScenario = useCallback((updates: Partial<Scenario>) => {
     if (!project || !activeScenario) return;
@@ -101,77 +65,72 @@ export function useProjectManagement() {
   }, [project, activeScenario, updateProject]);
 
   return {
-    savedProjects,
-    project,
-    activeScenario,
-    activeResult,
-    allResults,
-    isCalculating,
-    setCurrentProjectId,
+    savedProjects, project, activeScenario, activeResult: activeScenario ? allResults[activeScenario.id] : null,
+    allResults, isCalculating, setCurrentProjectId,
     createProject: (name: string, sob: string, pe: string, lat: number, lng: number) => {
       const n = createTemplateProject(name, sob, pe, lat, lng);
-      setSavedProjects(p => ({...p, [n.id]: n}));
+      setSavedProjects(p => ({ ...p, [n.id]: n }));
+      ApiService.saveProject(n);
       return n.id;
     },
-    deleteProject: (id: string) => {
-      setSavedProjects(p => { const {[id]: _, ...rest} = p; return rest; });
-      showToast("Projeto removido.");
-    },
+    // Add missing method to duplicate an entire project
     duplicateProject: (id: string) => {
-      const source = savedProjects[id];
-      const clone = {
-        ...JSON.parse(JSON.stringify(source)), 
-        id: generateId('PRJ'), 
-        name: source.name + ' (Cópia)',
-        updatedAt: new Date().toISOString()
-      };
-      setSavedProjects(p => ({...p, [clone.id]: clone}));
-      showToast("Projeto duplicado.");
-    },
-    updateProject,
-    updateActiveScenario,
-    cloneScenario: () => {
-      if (!project || !activeScenario) return;
-      const newId = generateId('SCN');
-      const clone = { 
-        ...JSON.parse(JSON.stringify(activeScenario)), 
+      const prj = savedProjects[id];
+      if (!prj) return;
+      const newId = generateId('PRJ');
+      const newPrj: Project = { 
+        ...prj, 
         id: newId, 
-        name: `${activeScenario.name} (Cópia)`, 
+        name: `${prj.name} (Cópia)`, 
         updatedAt: new Date().toISOString() 
       };
-      updateProject({ scenarios: [...project.scenarios, clone], activeScenarioId: newId });
-      showToast("Cenário duplicado.");
+      setSavedProjects(p => ({ ...p, [newId]: newPrj }));
+      ApiService.saveProject(newPrj);
     },
-    createEmptyScenario: () => {
-      if (!project) return;
-      const newId = generateId('SCN');
-      const newScenario: Scenario = {
-        id: newId, 
-        name: `CENÁRIO ${project.scenarios.length + 1}`, 
-        updatedAt: new Date().toISOString(),
-        params: { trafoKva: 75, profile: 'Massivos', classType: 'Automatic', manualClass: 'B', normativeTable: 'PRODIST', includeGdInQt: false },
-        nodes: [{ id: 'TRAFO', parentId: '', meters: 0, cable: "3x95+54.6mm² Al", loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } }]
-      };
-      updateProject({ scenarios: [...project.scenarios, newScenario], activeScenarioId: newId });
-    },
-    deleteScenario: (id: string) => {
-      if (!project || project.scenarios.length <= 1) return;
-      const filtered = project.scenarios.filter(s => s.id !== id);
-      updateProject({ scenarios: filtered, activeScenarioId: filtered[0].id });
+    deleteProject: async (id: string) => {
+      await ApiService.deleteProject(id);
+      setSavedProjects(p => { const { [id]: _, ...rest } = p; return rest; });
     },
     optimizeActive: async () => {
       if (!project || !activeScenario) return;
-      const { ElectricalEngine } = await import('../services/electricalEngine');
-      const optimizedNodes = ElectricalEngine.optimize(
-        activeScenario.id, 
-        activeScenario.nodes, 
-        activeScenario.params, 
-        project.cables, 
-        project.ipTypes
-      );
+      showToast("Otimizando rede via Backend...", "info");
+      const optimizedNodes = await ApiService.optimizeScenario({
+        scenarioId: activeScenario.id, nodes: activeScenario.nodes, params: activeScenario.params, cables: project.cables, ips: project.ipTypes
+      });
       updateActiveScenario({ nodes: optimizedNodes });
-      showToast("Auto-dimensionamento concluído.");
+      showToast("Otimização concluída!", "success");
     },
+    // Add missing method to clone the current scenario within a project
+    cloneScenario: () => {
+      if (!project || !activeScenario) return;
+      const newScenario: Scenario = {
+        ...activeScenario,
+        id: generateId('SCN'),
+        name: `${activeScenario.name} (Cópia)`,
+        updatedAt: new Date().toISOString()
+      };
+      updateProject({ scenarios: [...project.scenarios, newScenario], activeScenarioId: newScenario.id });
+    },
+    // Add missing method to create a new empty study scenario
+    createEmptyScenario: () => {
+      if (!project) return;
+      const newScenario: Scenario = {
+        id: generateId('SCN'),
+        name: `CENÁRIO ${project.scenarios.length + 1}`,
+        updatedAt: new Date().toISOString(),
+        params: { ...project.scenarios[0].params },
+        nodes: [{ 
+          id: 'TRAFO', 
+          parentId: '', 
+          meters: 0, 
+          cable: Object.keys(project.cables)[4] || "3x95+54.6mm² Al", 
+          loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 } 
+        }]
+      };
+      updateProject({ scenarios: [...project.scenarios, newScenario], activeScenarioId: newScenario.id });
+    },
+    updateActiveScenario,
+    updateProject,
     forceRecalculate: () => setRecalcTrigger(p => p + 1)
   };
 }

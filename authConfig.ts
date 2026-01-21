@@ -1,3 +1,4 @@
+
 import { Configuration, LogLevel } from "@azure/msal-browser";
 
 export const msalConfig: Configuration = {
@@ -12,10 +13,11 @@ export const msalConfig: Configuration = {
         // Em desenvolvimento local: http://localhost:5173
         redirectUri: window.location.origin, 
     },
+    // Cast cache to any to handle storeAuthStateInCookie which may not be in standard CacheOptions type in all versions
     cache: {
         cacheLocation: "sessionStorage", // 'sessionStorage' é mais seguro que localStorage para dados de sessão
         storeAuthStateInCookie: false,
-    },
+    } as any,
     system: {
         loggerOptions: {
             loggerCallback: (level, message, containsPii) => {
