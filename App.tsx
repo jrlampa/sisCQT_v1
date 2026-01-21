@@ -14,7 +14,8 @@ import Billing from './components/Billing.tsx';
 import GISView from './components/GISView.tsx';
 import SustainabilityDashboard from './components/SustainabilityDashboard.tsx';
 import SolarDashboard from './components/SolarDashboard.tsx';
-import { User, Project } from './types.ts';
+import ProtectedRoute from './components/ProtectedRoute.tsx';
+import { User } from './types.ts';
 import { useToast } from './context/ToastContext.tsx';
 import { useProjectManagement } from './hooks/useProjectManagement.ts';
 import { ApiService } from './services/apiService';
@@ -104,10 +105,13 @@ const App: React.FC = () => {
 
   return (
     <Routes>
+      {/* Rota Pública de Login */}
       <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={handleLogin} />} />
       
-      <Route path="/hub" element={
-        currentUser ? (
+      {/* Rotas Protegidas */}
+      <Route element={<ProtectedRoute user={currentUser} isLoading={isAuthLoading} />}>
+        
+        <Route path="/hub" element={
           <ProjectHub 
             projects={pm.savedProjects}
             onSelect={(id) => navigate(`/project/${id}/dashboard`)}
@@ -121,68 +125,66 @@ const App: React.FC = () => {
             }}
             onDelete={pm.deleteProject}
             onDuplicate={pm.duplicateProject}
-            user={currentUser}
+            user={currentUser!}
             onLogout={handleLogout}
             onBilling={() => navigate('/billing')}
           />
-        ) : <Navigate to="/login" />
-      } />
+        } />
 
-      <Route path="/billing" element={
-        currentUser ? (
+        <Route path="/billing" element={
           <div className="p-8 min-h-screen bg-[#f0f4ff]">
               <button onClick={() => navigate(-1)} className="mb-4 text-blue-600 font-bold px-6 py-2 glass rounded-full hover:bg-white transition-all shadow-sm">← Voltar</button>
-              <Billing user={currentUser} onUpdatePlan={(plan) => {
-                setCurrentUser({...currentUser, plan});
+              <Billing user={currentUser!} onUpdatePlan={(plan) => {
+                setCurrentUser({...currentUser!, plan});
                 showToast(`Plano atualizado para ${plan}!`, "success");
               }} />
           </div>
-        ) : <Navigate to="/login" />
-      } />
+        } />
 
-      <Route path="/project/:projectId" element={currentUser ? <ProjectRouteWrapper pm={pm} user={currentUser} onLogout={handleLogout} /> : <Navigate to="/login" />}>
-        <Route index element={<Navigate to="dashboard" />} />
-        <Route path="dashboard" element={
-          pm.activeResult ? (
-            <Dashboard 
-              project={pm.project!} result={pm.activeResult} isCalculating={pm.isCalculating}
-              onUpdateMetadata={(m) => pm.updateProject({ metadata: m })} 
+        <Route path="/project/:projectId" element={<ProjectRouteWrapper pm={pm} user={currentUser!} onLogout={handleLogout} />}>
+          <Route index element={<Navigate to="dashboard" />} />
+          <Route path="dashboard" element={
+            pm.activeResult ? (
+              <Dashboard 
+                project={pm.project!} result={pm.activeResult} isCalculating={pm.isCalculating}
+                onUpdateMetadata={(m) => pm.updateProject({ metadata: m })} 
+              />
+            ) : <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Calculando...</div>
+          } />
+          <Route path="editor" element={
+            pm.activeResult ? (
+              <ProjectEditor 
+                project={{...pm.project!, ...pm.activeScenario!}} 
+                onUpdate={(n) => pm.updateActiveScenario({ nodes: n })} 
+                onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} 
+                onOptimize={pm.optimizeActive}
+                onRecalculate={pm.forceRecalculate}
+                calculatedNodes={pm.activeResult.nodes}
+                result={pm.activeResult}
+              />
+            ) : null
+          } />
+          <Route path="gis" element={pm.activeResult ? <GISView project={pm.project!} result={pm.activeResult} onUpdateNodes={(n) => pm.updateActiveScenario({ nodes: n })} /> : null} />
+          <Route path="solar" element={pm.activeResult ? <SolarDashboard project={pm.project!} result={pm.activeResult} onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} /> : null} />
+          <Route path="sustainability" element={pm.activeResult ? <SustainabilityDashboard project={pm.project!} result={pm.activeResult} /> : null} />
+          <Route path="comparison" element={
+            <ComparisonView 
+              project={pm.project!} results={pm.allResults} 
+              onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })} 
+              onCloneScenario={pm.cloneScenario} onCreateEmptyScenario={pm.createEmptyScenario}
             />
-          ) : <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Calculando...</div>
-        } />
-        <Route path="editor" element={
-          pm.activeResult ? (
-            <ProjectEditor 
-              project={{...pm.project!, ...pm.activeScenario!}} 
-              onUpdate={(n) => pm.updateActiveScenario({ nodes: n })} 
-              onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} 
-              onOptimize={pm.optimizeActive}
-              onRecalculate={pm.forceRecalculate}
-              calculatedNodes={pm.activeResult.nodes}
-              result={pm.activeResult}
+          } />
+          <Route path="ai-chat" element={pm.activeResult ? <Chatbot project={pm.project!} result={pm.activeResult} /> : null} />
+          <Route path="report" element={pm.activeResult ? <ProjectReport project={pm.project!} activeScenario={pm.activeScenario!} result={pm.activeResult} allResults={pm.allResults} /> : null} />
+          <Route path="settings" element={
+            <Settings 
+              project={pm.project!} 
+              onUpdateCables={(c) => pm.updateProject({ cables: c })} 
+              onUpdateIpTypes={(i) => pm.updateProject({ ipTypes: i })} 
+              onUpdateReportConfig={(r) => pm.updateProject({ reportConfig: r })} 
             />
-          ) : null
-        } />
-        <Route path="gis" element={pm.activeResult ? <GISView project={pm.project!} result={pm.activeResult} onUpdateNodes={(n) => pm.updateActiveScenario({ nodes: n })} /> : null} />
-        <Route path="solar" element={pm.activeResult ? <SolarDashboard project={pm.project!} result={pm.activeResult} onUpdateParams={(p) => pm.updateActiveScenario({ params: p })} /> : null} />
-        <Route path="sustainability" element={pm.activeResult ? <SustainabilityDashboard project={pm.project!} result={pm.activeResult} /> : null} />
-        <Route path="comparison" element={
-          <ComparisonView 
-            project={pm.project!} results={pm.allResults} 
-            onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })} 
-            onCloneScenario={pm.cloneScenario} onCreateEmptyScenario={pm.createEmptyScenario}
-          />
-        } />
-        <Route path="ai-chat" element={pm.activeResult ? <Chatbot project={pm.project!} result={pm.activeResult} /> : null} />
-        <Route path="report" element={pm.activeResult ? <ProjectReport project={pm.project!} activeScenario={pm.activeScenario!} result={pm.activeResult} allResults={pm.allResults} /> : null} />
-        <Route path="settings" element={
-          <Settings 
-            project={pm.project!} 
-            onUpdateCables={(c) => pm.updateProject({ cables: c })} 
-            onUpdateIpTypes={(i) => pm.updateProject({ ipTypes: i })} 
-            onUpdateReportConfig={(r) => pm.updateProject({ reportConfig: r })} 
-          />
-        } />
+          } />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/hub" />} />

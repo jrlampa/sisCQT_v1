@@ -20,7 +20,10 @@
     "@prisma/client": "7.3.0",
     "express": "5.2.1",
     "path": "1.0.1",
-    "url": "0.11.4"
+    "url": "0.11.4",
+    "jsonwebtoken": "^9.0.3",
+    "@azure/msal-browser": "^5.0.2",
+    "@azure/msal-react": "^5.0.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

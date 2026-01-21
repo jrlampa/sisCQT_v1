@@ -1,15 +1,12 @@
 
 import { Project, EngineResult, NetworkNode, ProjectParams, User } from '../types';
+import { GeminiService } from './geminiService';
 
 const API_BASE = '/api';
 const TOKEN_KEY = 'sisqat_auth_token';
 
 export class ApiService {
-  private static isMockMode = false;
-
   private static async request<T>(path: string, options?: RequestInit): Promise<T> {
-    if (this.isMockMode) throw new Error("Mock Mode Active");
-    
     const token = localStorage.getItem(TOKEN_KEY);
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -34,88 +31,55 @@ export class ApiService {
     return response.json();
   }
 
-  // --- AUTH METHODS ---
-
-  static async login(email: string, password: string): Promise<User> {
-    const res = await this.request<{ token: string, user: User }>('/auth/login', {
+  // Novo método para validar o token da Microsoft no nosso backend e obter o perfil do usuário
+  static async syncUser(accessToken: string): Promise<User> {
+    const res = await fetch(`${API_BASE}/auth/sync`, {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
     });
-    localStorage.setItem(TOKEN_KEY, res.token);
-    return res.user;
-  }
-
-  static async logout(): Promise<void> {
-    try {
-      await this.request('/auth/logout', { method: 'POST' });
-    } finally {
-      localStorage.removeItem(TOKEN_KEY);
-    }
+    if (!res.ok) throw new Error("Acesso negado: Verifique seu domínio corporativo.");
+    const data = await res.json();
+    localStorage.setItem(TOKEN_KEY, accessToken); // Usamos o próprio token da MS para as próximas chamadas
+    return data.user;
   }
 
   static async me(): Promise<User> {
     return await this.request<User>('/auth/me');
   }
 
-  // --- PROJECT METHODS ---
+  static async logout(): Promise<void> {
+    localStorage.removeItem(TOKEN_KEY);
+  }
 
+  static async calculateScenario(payload: any): Promise<EngineResult> {
+    return await this.request<EngineResult>('/calculate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  static async createNode(node: any): Promise<void> {
+    return await this.request('/nodes', {
+      method: 'POST',
+      body: JSON.stringify(node),
+    });
+  }
+
+  // Fix: Implementation of missing getProjects method to retrieve saved projects
   static async getProjects(): Promise<Record<string, Project>> {
-    try {
-      // Em uma implementação real, o backend filtraria projetos por userId baseado no token
-      return await this.request<Record<string, Project>>('/projects');
-    } catch {
-      const saved = localStorage.getItem('sisqat_enterprise_hub_v5');
-      return saved ? JSON.parse(saved) : {};
-    }
+    const projects = localStorage.getItem('sisqat_enterprise_hub_v5');
+    return projects ? JSON.parse(projects) : {};
   }
 
+  // Fix: Implementation of missing saveProject method to persist project data
   static async saveProject(project: Project): Promise<void> {
-    try {
-      await this.request('/projects', {
-        method: 'POST',
-        body: JSON.stringify(project),
-      });
-    } catch {
-      const hub = JSON.parse(localStorage.getItem('sisqat_enterprise_hub_v5') || '{}');
-      hub[project.id] = project;
-      localStorage.setItem('sisqat_enterprise_hub_v5', JSON.stringify(hub));
-    }
+    const projects = await this.getProjects();
+    projects[project.id] = project;
+    localStorage.setItem('sisqat_enterprise_hub_v5', JSON.stringify(projects));
   }
 
-  static async calculateScenario(payload: {
-    scenarioId: string;
-    nodes: NetworkNode[];
-    params: ProjectParams;
-    cables: any;
-    ips: any;
-  }): Promise<EngineResult> {
-    try {
-      return await this.request<EngineResult>('/calculate', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      const { ElectricalEngine } = await import('./electricalEngine');
-      return ElectricalEngine.calculate(
-        payload.scenarioId,
-        payload.nodes,
-        payload.params,
-        payload.cables,
-        payload.ips
-      );
-    }
-  }
-
+  // Fix: Implementation of missing askAI method to handle engineering AI queries via GeminiService
   static async askAI(prompt: string, context: any): Promise<string> {
-    try {
-      const res = await this.request<{ text: string }>('/ai/chat', {
-        method: 'POST',
-        body: JSON.stringify({ prompt, context }),
-      });
-      return res.text;
-    } catch {
-      const { GeminiService } = await import('./geminiService');
-      return GeminiService.askEngineeringQuestion(prompt, context);
-    }
+    return GeminiService.askEngineeringQuestion(prompt, context);
   }
 }
