@@ -1,25 +1,35 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { NetworkNode, EngineResult, Project } from '../types';
-import { PROFILES } from '../constants';
 
 interface UnifilarDiagramProps {
   nodes: NetworkNode[];
   result: EngineResult;
   cables: Project['cables'];
+  interactive?: boolean;
+  onUpdateNode?: (nodeId: string, field: string, value: any) => void;
+  onRemoveNode?: (nodeId: string) => void;
+  ipTypes?: Record<string, number>;
 }
 
-const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables }) => {
+const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ 
+  nodes, 
+  result, 
+  cables, 
+  interactive = false, 
+  onUpdateNode, 
+  onRemoveNode,
+  ipTypes = {}
+}) => {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [lastMousePos, setLastMousePos] = useState({ x: 0, y: 0 });
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   
-  // FIX: Explicitly type nodeMap as Map<string, NetworkNode>
   const nodeMap = new Map<string, NetworkNode>(result.nodes.map(n => [n.id, n]));
   
-  // Organização da árvore (Levels)
   const levels: Map<string, number> = new Map();
   const getLevel = (id: string): number => {
     if (levels.has(id)) return levels.get(id)!;
@@ -37,8 +47,8 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
 
   const maxLevel = Math.max(...Array.from(levels.values()), 1);
   const baseWidth = 1000;
-  const baseHeight = 600;
-  const levelY = baseHeight / (maxLevel + 1);
+  const baseHeight = 700;
+  const levelY = baseHeight / (maxLevel + 1.5);
 
   const levelNodes: Map<number, string[]> = new Map();
   levels.forEach((lvl, id) => {
@@ -51,11 +61,12 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
     const idsInLvl = levelNodes.get(lvl) || [];
     const idx = idsInLvl.indexOf(id);
     const x = (baseWidth / (idsInLvl.length + 1)) * (idx + 1);
-    const y = levelY * lvl + 80;
+    const y = levelY * lvl + 100;
     return { x, y };
   };
 
   const handleWheel = (e: React.WheelEvent) => {
+    if (!interactive) return;
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
     setZoom(prev => Math.min(Math.max(prev * delta, 0.5), 3));
   };
@@ -75,14 +86,12 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
 
   const handleMouseUp = () => setIsDragging(false);
 
-  const resetView = () => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-  };
+  const selectedNode = nodes.find(n => n.id === selectedNodeId);
+  const resSelected = selectedNode ? nodeMap.get(selectedNode.id) : null;
 
   return (
     <div 
-      className="glass-dark rounded-[32px] p-8 border border-white/50 shadow-inner overflow-hidden relative print:p-0 print:border-none select-none cursor-grab active:cursor-grabbing"
+      className={`glass-dark rounded-[40px] p-8 border border-white/50 shadow-inner overflow-hidden relative select-none h-full ${interactive ? 'cursor-grab active:cursor-grabbing' : 'print:p-0 print:border-none'}`}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -91,42 +100,34 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
     >
       <div className="flex justify-between items-center mb-6 print:hidden relative z-20">
         <div className="flex flex-col">
-          <h3 className="font-bold text-gray-700 text-xs uppercase tracking-widest flex items-center gap-2">
-            <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
-            📐 Mapa de Diagnóstico de Rede
+          <h3 className="font-black text-gray-800 text-xs uppercase tracking-tighter flex items-center gap-2">
+            <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+            {interactive ? 'MODO TOPOLOGIA INTERATIVA' : 'DIAGRAMA UNIFILAR'}
           </h3>
-          <span className="text-[8px] text-gray-400 font-bold uppercase mt-1">Clique e arraste para navegar. A opacidade indica saúde do trecho.</span>
+          <span className="text-[9px] text-gray-400 font-bold uppercase mt-1 tracking-widest">
+            {interactive ? 'Clique para editar, arraste para navegar' : 'Visualização estática para relatório'}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex bg-white/60 p-1 rounded-xl border border-white/80 shadow-sm">
             <button onClick={() => setZoom(z => Math.min(z + 0.1, 3))} className="w-8 h-8 flex items-center justify-center text-blue-600 font-black hover:bg-white rounded-lg transition-all">+</button>
-            <div className="w-px h-4 bg-gray-200 self-center"></div>
             <button onClick={() => setZoom(z => Math.max(z - 0.1, 0.5))} className="w-8 h-8 flex items-center justify-center text-blue-600 font-black hover:bg-white rounded-lg transition-all">−</button>
           </div>
-          <button 
-            onClick={resetView}
-            className="px-4 py-2 bg-white text-[10px] font-black text-gray-500 rounded-xl border border-gray-100 hover:border-blue-200 hover:text-blue-600 transition-all shadow-sm"
-          >
-            RESET
-          </button>
+          <button onClick={() => {setZoom(1); setOffset({x:0, y:0}); setSelectedNodeId(null);}} className="px-4 py-2 bg-white text-[9px] font-black text-gray-500 rounded-xl border border-gray-100 shadow-sm">RESET</button>
         </div>
       </div>
 
       <svg 
         viewBox={`0 0 ${baseWidth} ${baseHeight}`} 
-        className="w-full h-auto drop-shadow-2xl" 
+        className="w-full h-full drop-shadow-2xl" 
         preserveAspectRatio="xMidYMid meet"
         style={{ pointerEvents: 'none' }}
       >
         <defs>
-          <filter id="glow-v2" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="4" result="blur"/>
+          <filter id="glow-unifilar" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
             <feComposite in="SourceGraphic" in2="blur" operator="over"/>
           </filter>
-          <linearGradient id="link-grad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.9" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.9" />
-          </linearGradient>
         </defs>
 
         <g style={{ 
@@ -135,7 +136,6 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
           transition: isDragging ? 'none' : 'transform 0.4s cubic-bezier(0.23, 1, 0.32, 1)',
           pointerEvents: 'all'
         }}>
-          {/* Linhas de Conexão (Condutores) */}
           {nodes.map(node => {
             if (!node.parentId) return null;
             const start = getPos(node.parentId);
@@ -143,56 +143,31 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
             const res = nodeMap.get(node.id);
             const cableInfo = cables[node.cable];
             
-            // Definição de "Sobre" (Estado crítico)
-            // FIX: res is correctly typed as NetworkNode | undefined
             const isOverloaded = (res?.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
             const isCriticalCqt = (res?.accumulatedCqt || 0) > 6;
-            const isSobre = isOverloaded || isCriticalCqt;
-            
-            // Visibilidade aumentada: 
-            // - 1.0 para críticos ou hover
-            // - 0.4 para estado normal (garantindo que não pareçam órfãos)
-            const isHighLight = isSobre || hoveredNodeId === node.id || hoveredNodeId === node.parentId || hoveredNodeId === `link-${node.id}`;
+            const isHighRise = (res?.solarVoltageRise || 0) > 5;
+            const hasReverse = (res?.netCurrentDay || 0) < 0;
 
             return (
-              <g 
-                key={`link-${node.id}`} 
-                className="group/link"
-                onMouseEnter={() => setHoveredNodeId(`link-${node.id}`)}
-                onMouseLeave={() => setHoveredNodeId(null)}
-              >
-                {/* Linha de fundo (para melhor contraste em telas claras) */}
+              <g key={`link-${node.id}`} className="group/link">
                 <line 
                   x1={start.x} y1={start.y} x2={end.x} y2={end.y} 
-                  stroke="#e2e8f0"
-                  strokeWidth="3"
-                  style={{ opacity: 0.2 }}
-                />
-                <line 
-                  x1={start.x} y1={start.y} x2={end.x} y2={end.y} 
-                  stroke={isSobre ? '#ef4444' : 'url(#link-grad)'} 
-                  strokeWidth={isHighLight ? "4" : "2.5"}
-                  strokeDasharray={isSobre && isCriticalCqt ? "6,4" : ""}
-                  style={{ 
-                    opacity: isHighLight ? 1 : 0.4, 
-                    transition: 'opacity 0.3s ease, stroke-width 0.3s ease' 
-                  }}
-                  className="group-hover/link:stroke-blue-400 group-hover/link:stroke-[6px]"
+                  stroke={isOverloaded ? '#ef4444' : isHighRise ? '#f97316' : '#3b82f6'} 
+                  strokeWidth={selectedNodeId === node.id ? "6" : "3"}
+                  opacity={hoveredNodeId === node.id || selectedNodeId === node.id ? "1" : "0.5"}
+                  strokeDasharray={hasReverse ? "4,4" : ""}
+                  className="transition-all duration-300"
                 />
               </g>
             );
           })}
 
-          {/* Nós e Tooltips */}
           {nodes.map(node => {
             const { x, y } = getPos(node.id);
             const isTrafo = node.id === 'TRAFO';
             const res = nodeMap.get(node.id);
-            const cableInfo = cables[node.cable];
-            // FIX: res is correctly typed as NetworkNode | undefined
-            const isOverloaded = !isTrafo && (res?.calculatedLoad || 0) > (cableInfo?.ampacity || 0);
-            const isCriticalCqt = !isTrafo && (res?.accumulatedCqt || 0) > 6;
-            const isSobre = isOverloaded || isCriticalCqt;
+            const isSelected = selectedNodeId === node.id;
+            const isWarning = (res?.accumulatedCqt || 0) > 6 || (res?.calculatedLoad || 0) > (cables[node.cable]?.ampacity || 0);
 
             return (
               <g 
@@ -200,48 +175,108 @@ const UnifilarDiagram: React.FC<UnifilarDiagramProps> = ({ nodes, result, cables
                 className="group/node cursor-pointer"
                 onMouseEnter={() => setHoveredNodeId(node.id)}
                 onMouseLeave={() => setHoveredNodeId(null)}
+                onClick={(e) => { e.stopPropagation(); setSelectedNodeId(isSelected ? null : node.id); }}
               >
                 {isTrafo ? (
-                  <g filter="url(#glow-v2)">
-                    <rect 
-                      x={x-22} y={y-22} width="44" height="44" rx="10" 
-                      className="fill-[#004a80] transition-all duration-300 group-hover/node:fill-blue-700 shadow-xl" 
-                    />
-                    <text x={x} y={y + 5} textAnchor="middle" className="fill-white text-[10px] font-black uppercase">T</text>
-                  </g>
+                  <rect 
+                    x={x-25} y={y-25} width="50" height="50" rx="12" 
+                    className={`${isSelected ? 'fill-blue-800' : 'fill-[#004a80]'} stroke-blue-400 stroke-[4px] transition-all`} 
+                  />
                 ) : (
                   <circle 
-                    cx={x} cy={y} r="10" 
-                    className={`${isSobre ? 'fill-red-500 animate-pulse' : 'fill-white'} stroke-blue-600 stroke-[3px] transition-all duration-300 group-hover/node:scale-[1.6] group-hover/node:stroke-blue-400`} 
+                    cx={x} cy={y} r={isSelected ? 16 : 12} 
+                    className={`${isWarning ? 'fill-red-500' : 'fill-white'} stroke-blue-600 stroke-[4px] transition-all group-hover/node:stroke-blue-400`} 
                   />
                 )}
                 
                 <text 
-                  x={x} y={y + 38} textAnchor="middle" 
-                  className="text-[10px] font-black fill-gray-800 uppercase tracking-tighter transition-all group-hover/node:fill-blue-600 group-hover/node:translate-y-1"
+                  x={x} y={y + 45} textAnchor="middle" 
+                  className={`text-[11px] font-black uppercase tracking-tighter transition-all ${isSelected ? 'fill-blue-600 scale-110' : 'fill-gray-600'}`}
                 >
-                  {isTrafo ? 'CABINE' : node.id}
+                  {node.id}
                 </text>
-
-                {/* Tooltip Detalhado */}
-                <g className="opacity-0 group-hover/node:opacity-100 pointer-events-none transition-all duration-300 ease-out transform translate-y-4 group-hover/node:translate-y-0">
-                  <rect 
-                    x={x + 18} y={y - 50} width="160" height="75" rx="16" 
-                    className="fill-white/95 stroke-blue-100 shadow-[0_20px_50px_rgba(0,0,0,0.1)] backdrop-blur-sm" 
-                  />
-                  <text x={x + 30} y={y - 32} className="text-[10px] font-black fill-gray-900 uppercase">Ponto {node.id}</text>
-                  {/* FIX: res is correctly typed as NetworkNode | undefined */}
-                  <text x={x + 30} y={y - 18} className="text-[9px] font-bold fill-blue-600 uppercase">Carga: {res?.calculatedLoad?.toFixed(1)}A</text>
-                  <text x={x + 30} y={y - 6} className="text-[9px] font-bold fill-indigo-500 uppercase">CQT Acum.: {res?.accumulatedCqt?.toFixed(2)}%</text>
-                  <text x={x + 30} y={y + 6} className="text-[8px] font-bold fill-gray-400 uppercase">Cabo: {node.cable}</text>
-                  <circle cx={x+25} cy={y-21} r="2" className="fill-blue-400" />
-                  <circle cx={x+25} cy={y-9} r="2" className="fill-indigo-400" />
-                </g>
               </g>
             );
           })}
         </g>
       </svg>
+
+      {/* Painel Flutuante de Edição Rápida */}
+      {interactive && selectedNode && (
+        <div className="absolute right-10 top-24 w-80 glass-dark rounded-[32px] p-7 border border-white/60 shadow-2xl animate-in slide-in-from-right-10 duration-500 z-50">
+          <header className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white text-xl font-black">{selectedNode.id.charAt(0)}</div>
+               <div className="flex flex-col">
+                  <span className="text-xs font-black text-gray-800 uppercase tracking-tighter">Ponto {selectedNode.id}</span>
+                  <span className="text-[8px] font-bold text-blue-500 uppercase tracking-widest">{resSelected?.calculatedLoad?.toFixed(1)}A | {resSelected?.accumulatedCqt?.toFixed(2)}%</span>
+               </div>
+            </div>
+            <button onClick={() => setSelectedNodeId(null)} className="text-gray-400 hover:text-red-500 font-black">✕</button>
+          </header>
+
+          <div className="flex flex-col gap-4">
+             {!selectedNode.id.includes('TRAFO') && (
+               <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Condutor</label>
+                  <select 
+                    className="w-full bg-white/60 border border-blue-100 rounded-xl px-4 py-2 text-xs font-black outline-none"
+                    value={selectedNode.cable}
+                    onChange={(e) => onUpdateNode?.(selectedNode.id, 'cable', e.target.value)}
+                  >
+                    {Object.keys(cables).map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+               </div>
+             )}
+
+             <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                   <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Metros</label>
+                   <input 
+                    type="number"
+                    className="w-full bg-white/60 border border-blue-100 rounded-xl px-4 py-2 text-xs font-black outline-none"
+                    value={selectedNode.meters}
+                    onChange={(e) => onUpdateNode?.(selectedNode.id, 'meters', Number(e.target.value))}
+                   />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                   <label className="text-[9px] font-black text-gray-400 uppercase ml-1">Montante</label>
+                   <select 
+                    className="w-full bg-white/60 border border-blue-100 rounded-xl px-4 py-2 text-xs font-black outline-none"
+                    value={selectedNode.parentId}
+                    onChange={(e) => onUpdateNode?.(selectedNode.id, 'parentId', e.target.value)}
+                   >
+                     {nodes.filter(n => n.id !== selectedNode.id).map(n => <option key={n.id} value={n.id}>{n.id}</option>)}
+                   </select>
+                </div>
+             </div>
+
+             <div className="h-px bg-gray-100 my-2"></div>
+
+             <div className="grid grid-cols-3 gap-2">
+                {['mono', 'bi', 'tri'].map(phase => (
+                  <div key={phase} className="flex flex-col items-center gap-1">
+                     <input 
+                      className="w-full bg-white/60 border border-blue-50 rounded-lg text-center py-2 text-[10px] font-black text-blue-700 outline-none"
+                      value={(selectedNode.loads as any)[phase]}
+                      onChange={(e) => onUpdateNode?.(selectedNode.id, phase, Number(e.target.value))}
+                     />
+                     <span className="text-[8px] font-black text-gray-400 uppercase">{phase}</span>
+                  </div>
+                ))}
+             </div>
+
+             <div className="mt-4 flex gap-2">
+                <button 
+                  onClick={() => onRemoveNode?.(selectedNode.id)}
+                  className="flex-1 bg-red-50 text-red-500 py-3 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                >
+                  Excluir Ponto
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

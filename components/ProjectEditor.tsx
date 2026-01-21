@@ -24,11 +24,10 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
   const profileData = (PROFILES as any)[profile] || PROFILES["Massivos"];
   const isCriticalCqt = !isTrafo && (resNode?.accumulatedCqt ?? 0) > profileData.cqtMax;
   
-  // Detector de Fluxo Reverso e Elevação de Tensão
-  const isReverseFlow = !isTrafo && (resNode?.netCurrentDay || 0) < 0;
+  const hasSolarAsset = !isTrafo && ((node.loads.solarKva || 0) > 0 || (node.loads.solarQty || 0) > 0);
+  const hasActiveReverseFlow = !isTrafo && (resNode?.netCurrentDay || 0) < 0;
   const isHighVoltageRise = !isTrafo && (resNode?.solarVoltageRise || 0) > 5;
 
-  // Análise de Fase Instantânea
   const has3PhaseLoad = node.loads.tri > 0 || node.loads.pointQty > 0 || node.loads.pointKva > 0;
   const isBiphasicCable = node.cable.startsWith('2#');
   const isPhaseMismatch = !isTrafo && has3PhaseLoad && isBiphasicCable;
@@ -62,12 +61,11 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
       ${isChanged ? 'bg-blue-50/40' : ''} 
       ${isTrafo ? 'bg-blue-50/20' : ''} 
       ${isPhaseMismatch ? 'bg-red-50/20' : ''}
-      ${isReverseFlow ? 'bg-orange-50/20 shadow-inner' : ''}`}>
+      ${hasSolarAsset ? 'bg-orange-50/20 shadow-inner' : ''}`}>
       
-      {/* ID do Ponto */}
       <td className="px-6 py-6 min-w-[120px] relative">
-        {isReverseFlow && (
-          <div className="absolute top-2 left-2 flex gap-1 animate-in slide-in-from-top-1 duration-500">
+        {hasActiveReverseFlow && (
+          <div className="absolute top-2 left-2 flex gap-1 animate-in slide-in-from-top-1 duration-500" title="Fluxo Reverso Ativo">
             <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse shadow-[0_0_8px_#f97316]"></span>
           </div>
         )}
@@ -84,7 +82,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         )}
       </td>
 
-      {/* Montante */}
       <td className="px-6 py-6 text-center">
         {isTrafo ? (
           <span className="text-[10px] font-black text-blue-300 uppercase tracking-widest">ORIGEM</span>
@@ -97,7 +94,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         )}
       </td>
 
-      {/* Metros */}
       <td className="px-4 py-6 text-center">
         {!isTrafo ? (
           <input 
@@ -112,7 +108,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         )}
       </td>
 
-      {/* Condutor */}
       <td className="px-6 py-6">
         {!isTrafo ? (
           <div className="relative">
@@ -143,7 +138,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         )}
       </td>
 
-      {/* Cargas Diversificadas */}
       <td className="px-6 py-6 bg-blue-50/5">
         <div className="flex gap-1.5 justify-center">
           {[{k: 'mono', l: 'M'}, {k: 'bi', l: 'B'}, {k: 'tri', l: 'T'}].map(item => (
@@ -161,7 +155,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         </div>
       </td>
 
-      {/* Geração Solar (kVA) */}
       <td className="px-6 py-6 bg-yellow-50/5">
         <div className="flex gap-1.5 justify-center items-center">
           <div className="flex flex-col items-center gap-0.5">
@@ -181,7 +174,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         </div>
       </td>
 
-      {/* Carga Especial */}
       <td className="px-6 py-6 bg-indigo-50/5">
         <div className="flex gap-1.5 justify-center items-center">
           <div className="flex flex-col items-center gap-0.5">
@@ -203,7 +195,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         </div>
       </td>
 
-      {/* Iluminação Pública */}
       <td className="px-6 py-6 bg-orange-50/5">
         <div className="flex gap-1.5 justify-center items-center">
           <select 
@@ -217,17 +208,15 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         </div>
       </td>
 
-      {/* Corrente Calculada */}
       <td className="px-6 py-6 text-center">
         <div className={`inline-flex items-center px-3 py-1.5 rounded-xl font-black text-[11px] 
           ${isOverloaded ? 'bg-red-500 text-white shadow-lg shadow-red-200 animate-pulse' : 
-            isReverseFlow ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'text-[#004a80] bg-blue-50'}`}>
-          {isReverseFlow && <span className="mr-1">🔄</span>}
+            hasActiveReverseFlow ? 'bg-orange-500 text-white shadow-lg shadow-orange-200' : 'text-[#004a80] bg-blue-50'}`}>
+          {hasActiveReverseFlow && <span className="mr-1">🔄</span>}
           {(resNode?.calculatedLoad || 0).toFixed(1)}A
         </div>
       </td>
 
-      {/* CQT Acumulada / Rise */}
       <td className="px-6 py-6 text-center">
         <div className={`inline-flex flex-col items-center px-3 py-1.5 rounded-xl font-black text-[11px] 
           ${isHighVoltageRise ? 'bg-orange-600 text-white shadow-lg' : 
@@ -238,7 +227,6 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({ node, resNode, isTrafo
         </div>
       </td>
 
-      {/* Ações */}
       <td className="px-4 py-6 text-right">
         {!isTrafo && (
           <button onClick={() => onRemove(node.id)} className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all p-2">✕</button>
@@ -268,10 +256,10 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
   result
 }) => {
   const { showToast } = useToast();
+  const [viewMode, setViewMode] = useState<'table' | 'interactive'>('table');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showTopology, setShowTopology] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [lastOptimizedNodes, setLastOptimizedNodes] = useState<NetworkNode[] | null>(null);
@@ -306,36 +294,6 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
       await onRecalculate();
       setTimeout(() => setIsRecalculating(false), 500);
     }
-  };
-
-  const confirmAddNode = () => {
-    const lastNode = project.nodes[project.nodes.length - 1];
-    const nextId = (Math.max(...project.nodes.map(n => parseInt(n.id) || 0)) + 1).toString();
-    const latNum = parseFloat(newNodeCoords.lat.replace(',', '.'));
-    const lngNum = parseFloat(newNodeCoords.lng.replace(',', '.'));
-
-    const newNode: NetworkNode = {
-      id: nextId,
-      parentId: lastNode?.id || 'TRAFO',
-      meters: 30,
-      cable: project.nodes[0]?.cable || Object.keys(project.cables)[0],
-      loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 }
-    };
-
-    if (!isNaN(latNum) && !isNaN(lngNum)) {
-      newNode.lat = latNum;
-      newNode.lng = lngNum;
-      newNode.utm = GisService.toUtm(latNum, lngNum);
-      const parent = project.nodes.find(n => n.id === newNode.parentId);
-      if (parent && parent.lat) {
-        newNode.meters = Math.round(GisService.calculateDistance(parent.lat, parent.lng, newNode.lat, newNode.lng));
-      }
-    }
-
-    onUpdate([...project.nodes, newNode]);
-    showToast(`Ponto ${nextId} adicionado.`);
-    setIsAddModalOpen(false);
-    setNewNodeCoords({ lat: '', lng: '' });
   };
 
   const updateNodeField = useCallback((nodeId: string, field: string, value: any) => {
@@ -378,8 +336,23 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
     <div className="flex flex-col gap-6 animate-in slide-in-from-bottom-4 duration-500 pb-12 relative">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/40 p-6 rounded-[32px] border border-white/60 shadow-sm">
         <div className="flex flex-col">
-          <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase">Gestão de Topologia</h2>
-          <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Dimensionamento e controle de ativos</p>
+          <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase">Estudo de Topologia</h2>
+          <div className="flex items-center gap-4 mt-2">
+             <div className="flex bg-white/50 p-1 rounded-xl border border-blue-100 shadow-sm">
+                <button 
+                  onClick={() => setViewMode('table')}
+                  className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'table' ? 'bg-[#004a80] text-white' : 'text-gray-400'}`}
+                >
+                  Tabela
+                </button>
+                <button 
+                  onClick={() => setViewMode('interactive')}
+                  className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === 'interactive' ? 'bg-[#004a80] text-white' : 'text-gray-400'}`}
+                >
+                  Diagrama Interativo
+                </button>
+             </div>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
           <button 
@@ -396,7 +369,6 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
         </div>
       </header>
 
-      {/* Alerta de Fluxo Reverso Customizado */}
       {reverseFlowWarning && (
         <div className="bg-orange-50 border border-orange-200 rounded-[32px] p-8 flex gap-6 items-start shadow-xl shadow-orange-100/50 animate-in fade-in zoom-in-95 duration-700">
            <div className="w-14 h-14 bg-orange-500 rounded-full flex items-center justify-center text-white text-3xl shadow-lg shrink-0">🔄</div>
@@ -405,86 +377,96 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
               <p className="text-xs text-orange-700 leading-relaxed font-medium">
                 {reverseFlowWarning}
               </p>
-              <div className="mt-4 flex gap-4">
-                 <div className="px-3 py-1 bg-white/60 border border-orange-200 rounded-lg text-[9px] font-black text-orange-600 uppercase">Impacto ESG: Positivo</div>
-                 <div className="px-3 py-1 bg-white/60 border border-orange-200 rounded-lg text-[9px] font-black text-orange-600 uppercase">Risco Proteção: Médio</div>
-              </div>
            </div>
         </div>
       )}
 
-      {showTopology && <div className="animate-in slide-in-from-top-4 duration-500"><UnifilarDiagram nodes={project.nodes} result={result!} cables={project.cables} /></div>}
-
-      <div className="bg-white/60 p-8 rounded-[32px] border border-white/80 shadow-sm">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
-          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Trafo (kVA)</label>
-            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.trafoKva} onChange={(e) => onUpdateParams({...project.params, trafoKva: Number(e.target.value)})}>
-              {[15, 30, 45, 75, 112.5, 150, 225, 300].map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Normativa</label>
-            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.normativeTable} onChange={(e) => onUpdateParams({...project.params, normativeTable: e.target.value})}>
-              {Object.keys(DMDI_TABLES).map(norm => <option key={norm} value={norm}>{norm}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Perfil</label>
-            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.profile} onChange={(e) => onUpdateParams({...project.params, profile: e.target.value})}>
-              {Object.keys(PROFILES).map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Classe DMDI</label>
-            <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.manualClass} onChange={(e) => onUpdateParams({...project.params, manualClass: e.target.value as any})}>
-              <option value="A">Classe A</option><option value="B">Classe B</option><option value="C">Classe C</option><option value="D">Classe D</option>
-            </select>
-          </div>
-          <div className="flex flex-col gap-1.5 justify-end">
-             <button 
-                onClick={() => onUpdateParams({...project.params, includeGdInQt: !project.params.includeGdInQt})}
-                className={`px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border-2 ${project.params.includeGdInQt ? 'bg-orange-500 border-orange-600 text-white shadow-lg animate-pulse' : 'bg-white border-blue-100 text-blue-400 hover:border-blue-400 hover:text-blue-600'}`}
-             >
-                {project.params.includeGdInQt ? 'GD no Cálculo: ATIVO' : 'GD no Cálculo: INATIVO'}
-             </button>
-          </div>
+      {viewMode === 'interactive' ? (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-700 h-[700px]">
+          <UnifilarDiagram 
+            nodes={project.nodes} 
+            result={result!} 
+            cables={project.cables} 
+            interactive={true} 
+            onUpdateNode={updateNodeField}
+            onRemoveNode={removeNode}
+            ipTypes={project.ipTypes}
+          />
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8 border-t border-blue-50">
-          <div className="flex flex-col items-center md:items-start">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ativos Conectados</span>
-            <span className="text-[28px] font-black text-[#004a80] leading-none mt-1">{project.nodes.length} <span className="text-xs uppercase text-blue-300">unid</span></span>
-          </div>
-          <div className="flex flex-col items-center">
-            <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">DMDI Diversificada</span>
-            <div className="flex flex-col items-center">
-                <span className="text-[28px] font-black text-blue-600 leading-none mt-1">{(result?.kpis.diversifiedLoad || 0).toFixed(2)} <span className="text-xs uppercase text-blue-300">kVA</span></span>
-                <span className="text-[9px] font-black text-blue-300 uppercase mt-1 tracking-widest">Degrau: {(result?.kpis.globalDmdiFactor || 0).toFixed(2)} kVA/un</span>
+      ) : (
+        <>
+          <div className="bg-white/60 p-8 rounded-[32px] border border-white/80 shadow-sm">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-8">
+              <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Trafo (kVA)</label>
+                <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.trafoKva} onChange={(e) => onUpdateParams({...project.params, trafoKva: Number(e.target.value)})}>
+                  {[15, 30, 45, 75, 112.5, 150, 225, 300].map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Normativa</label>
+                <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.normativeTable} onChange={(e) => onUpdateParams({...project.params, normativeTable: e.target.value})}>
+                  {Object.keys(DMDI_TABLES).map(norm => <option key={norm} value={norm}>{norm}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Perfil</label>
+                <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.profile} onChange={(e) => onUpdateParams({...project.params, profile: e.target.value})}>
+                  {Object.keys(PROFILES).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5"><label className="text-[9px] font-black text-blue-600 uppercase ml-1">Classe DMDI</label>
+                <select className="bg-white border border-blue-100 rounded-xl px-4 py-2.5 text-xs font-black" value={project.params.manualClass} onChange={(e) => onUpdateParams({...project.params, manualClass: e.target.value as any})}>
+                  <option value="A">Classe A</option><option value="B">Classe B</option><option value="C">Classe C</option><option value="D">Classe D</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5 justify-end">
+                 <button 
+                    onClick={() => onUpdateParams({...project.params, includeGdInQt: !project.params.includeGdInQt})}
+                    className={`px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all border-2 ${project.params.includeGdInQt ? 'bg-orange-500 border-orange-600 text-white shadow-lg animate-pulse' : 'bg-white border-blue-100 text-blue-400 hover:border-blue-400 hover:text-blue-600'}`}
+                 >
+                    {project.params.includeGdInQt ? 'GD no Cálculo: ATIVO' : 'GD no Cálculo: INATIVO'}
+                 </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 pt-8 border-t border-blue-50">
+              <div className="flex flex-col items-center md:items-start">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ativos Conectados</span>
+                <span className="text-[28px] font-black text-[#004a80] leading-none mt-1">{project.nodes.length} <span className="text-xs uppercase text-blue-300">unid</span></span>
+              </div>
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">DMDI Diversificada</span>
+                <div className="flex flex-col items-center">
+                    <span className="text-[28px] font-black text-blue-600 leading-none mt-1">{(result?.kpis.diversifiedLoad || 0).toFixed(2)} <span className="text-xs uppercase text-blue-300">kVA</span></span>
+                    <span className="text-[9px] font-black text-blue-300 uppercase mt-1 tracking-widest">Degrau: {(result?.kpis.globalDmdiFactor || 0).toFixed(2)} kVA/un</span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center md:items-end">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ocupação do Trafo</span>
+                <span className={`text-[28px] font-black leading-none mt-1 ${(result?.kpis.trafoOccupation || 0) > 100 ? 'text-red-600 animate-pulse' : 'text-[#004a80]'}`}>{(result?.kpis.trafoOccupation || 0).toFixed(2)} %</span>
+              </div>
             </div>
           </div>
-          <div className="flex flex-col items-center md:items-end">
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ocupação do Trafo</span>
-            <span className={`text-[28px] font-black leading-none mt-1 ${(result?.kpis.trafoOccupation || 0) > 100 ? 'text-red-600 animate-pulse' : 'text-[#004a80]'}`}>{(result?.kpis.trafoOccupation || 0).toFixed(2)} %</span>
-          </div>
-        </div>
-      </div>
 
-      <div className="overflow-x-auto bg-white/40 rounded-[32px] border border-white/50 shadow-2xl relative">
-        <table className="w-full text-left border-collapse min-w-[1200px]">
-          <thead className="bg-[#f8faff]/50 text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-white/20">
-            <tr><th className="px-6 py-6">ID PONTO</th><th className="px-6 py-6 text-center">MONTANTE</th><th className="px-4 py-6 text-center">METROS</th><th className="px-6 py-6">CONDUTOR</th><th className="px-6 py-6 text-center bg-blue-50/10">DIVERSIFICADOS</th><th className="px-6 py-6 text-center bg-yellow-50/10">SOLAR</th><th className="px-6 py-6 text-center bg-indigo-50/10">CARGA ESP.</th><th className="px-6 py-6 text-center bg-orange-50/10">IP PUB.</th><th className="px-6 py-6 text-center text-[#004a80]">CARGA (A)</th><th className="px-6 py-6 text-center">CQT % / Rise</th><th className="px-4 py-6"></th></tr>
-          </thead>
-          <tbody className="divide-y divide-white/10">
-            {paginatedNodes.map((node) => (
-              <EditorRow key={node.id} node={node} resNode={calculatedNodes?.find(n => n.id === node.id)} isTrafo={node.id === 'TRAFO'} isChanged={changedNodeIds.has(node.id)} cables={project.cables} ipTypes={project.ipTypes} profile={project.params.profile} onUpdateField={updateNodeField} onRemove={removeNode} />
-            ))}
-          </tbody>
-        </table>
-        {filteredNodes.length > itemsPerPage && (
-          <div className="flex justify-center p-6 bg-white/30 gap-2 border-t border-white/20">
-            {Array.from({ length: Math.ceil(filteredNodes.length / itemsPerPage) }).map((_, i) => (
-              <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-8 h-8 rounded-lg font-black text-[10px] transition-all ${currentPage === i + 1 ? 'bg-[#004a80] text-white' : 'bg-white text-gray-400 hover:bg-blue-50'}`}>{i + 1}</button>
-            ))}
+          <div className="overflow-x-auto bg-white/40 rounded-[32px] border border-white/50 shadow-2xl relative">
+            <table className="w-full text-left border-collapse min-w-[1200px]">
+              <thead className="bg-[#f8faff]/50 text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] border-b border-white/20">
+                <tr><th className="px-6 py-6">ID PONTO</th><th className="px-6 py-6 text-center">MONTANTE</th><th className="px-4 py-6 text-center">METROS</th><th className="px-6 py-6">CONDUTOR</th><th className="px-6 py-6 text-center bg-blue-50/10">DIVERSIFICADOS</th><th className="px-6 py-6 text-center bg-yellow-50/10">SOLAR</th><th className="px-6 py-6 text-center bg-indigo-50/10">CARGA ESP.</th><th className="px-6 py-6 text-center bg-orange-50/10">IP PUB.</th><th className="px-6 py-6 text-center text-[#004a80]">CARGA (A)</th><th className="px-6 py-6 text-center">CQT % / Rise</th><th className="px-4 py-6"></th></tr>
+              </thead>
+              <tbody className="divide-y divide-white/10">
+                {paginatedNodes.map((node) => (
+                  <EditorRow key={node.id} node={node} resNode={calculatedNodes?.find(n => n.id === node.id)} isTrafo={node.id === 'TRAFO'} isChanged={changedNodeIds.has(node.id)} cables={project.cables} ipTypes={project.ipTypes} profile={project.params.profile} onUpdateField={updateNodeField} onRemove={removeNode} />
+                ))}
+              </tbody>
+            </table>
+            {filteredNodes.length > itemsPerPage && (
+              <div className="flex justify-center p-6 bg-white/30 gap-2 border-t border-white/20">
+                {Array.from({ length: Math.ceil(filteredNodes.length / itemsPerPage) }).map((_, i) => (
+                  <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-8 h-8 rounded-lg font-black text-[10px] transition-all ${currentPage === i + 1 ? 'bg-[#004a80] text-white' : 'bg-white text-gray-400 hover:bg-blue-50'}`}>{i + 1}</button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };
