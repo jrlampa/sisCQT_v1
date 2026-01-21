@@ -14,19 +14,61 @@ import Billing from './components/Billing.tsx';
 import GISView from './components/GISView.tsx';
 import SustainabilityDashboard from './components/SustainabilityDashboard.tsx';
 import SolarDashboard from './components/SolarDashboard.tsx';
-import { User } from './types.ts';
+import { User, Project } from './types.ts';
 import { useToast } from './context/ToastContext.tsx';
 import { useProjectManagement } from './hooks/useProjectManagement.ts';
 
 const AUTH_KEY = 'sisqat_user_session';
+
+const ProjectRouteWrapper = ({ pm, user, onLogout }: { pm: any, user: User, onLogout: () => void }) => {
+  const { projectId } = useParams();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (projectId && pm.savedProjects[projectId]) {
+      pm.setCurrentProjectId(projectId);
+    } else if (projectId) {
+      navigate('/hub');
+    }
+  }, [projectId, pm.savedProjects, navigate]);
+
+  // Se o projeto ainda não foi carregado no estado, mas o ID é válido, mostramos loading.
+  // Se o ID na URL não bate com o ID carregado, esperamos o efeito acima sincronizar.
+  if (!pm.project || pm.project.id !== projectId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[#f0f4ff]">
+        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
+        <p className="mt-4 text-[10px] font-black text-blue-600 uppercase tracking-widest animate-pulse">Sincronizando Projeto...</p>
+      </div>
+    );
+  }
+
+  return (
+    <Layout 
+      project={pm.project}
+      user={user}
+      onGoToHub={() => navigate('/hub')}
+      onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })}
+      onCloneScenario={pm.cloneScenario}
+      onDeleteScenario={pm.deleteScenario}
+      onLogout={onLogout}
+    >
+      <Outlet />
+    </Layout>
+  );
+};
 
 const App: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
   
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = sessionStorage.getItem(AUTH_KEY);
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = sessionStorage.getItem(AUTH_KEY);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   const pm = useProjectManagement();
@@ -36,52 +78,14 @@ const App: React.FC = () => {
     else sessionStorage.removeItem(AUTH_KEY);
   }, [currentUser]);
 
-  // Componente de proteção de rota para projetos com tratamento de erro
-  const ProjectRouteWrapper = () => {
-    const { projectId } = useParams();
-    
-    useEffect(() => {
-      if (projectId) {
-        // Verifica se o projeto existe antes de tentar carregar
-        if (pm.savedProjects[projectId]) {
-          pm.setCurrentProjectId(projectId);
-        } else {
-          showToast("Projeto não encontrado ou removido.", "warning");
-          navigate('/hub');
-        }
-      }
-    }, [projectId, pm.savedProjects, navigate]);
-
-    if (!pm.project || pm.project.id !== projectId) {
-        return (
-            <div className="flex flex-col items-center justify-center h-screen bg-[#f0f4ff]">
-                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent animate-spin rounded-full"></div>
-                <p className="mt-4 text-[10px] font-black text-blue-600 uppercase tracking-widest animate-pulse">Carregando Projeto...</p>
-            </div>
-        );
-    }
-
-    return (
-      <Layout 
-        project={pm.project}
-        user={currentUser!}
-        onGoToHub={() => navigate('/hub')}
-        onSwitchScenario={(id) => pm.updateProject({ activeScenarioId: id })}
-        onCloneScenario={pm.cloneScenario}
-        onDeleteScenario={pm.deleteScenario}
-        onLogout={() => { setCurrentUser(null); navigate('/login'); }}
-      >
-        <Outlet />
-      </Layout>
-    );
+  const handleLogout = () => {
+    setCurrentUser(null);
+    navigate('/login');
   };
 
   return (
     <Routes>
       <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={(u) => { setCurrentUser(u); navigate('/hub'); }} />} />
-      
-      {/* Rotas Protegidas */}
-      <Route path="/" element={currentUser ? <Navigate to="/hub" /> : <Navigate to="/login" />} />
       
       <Route path="/hub" element={
         currentUser ? (
@@ -99,7 +103,7 @@ const App: React.FC = () => {
             onDelete={pm.deleteProject}
             onDuplicate={pm.duplicateProject}
             user={currentUser}
-            onLogout={() => { setCurrentUser(null); navigate('/login'); }}
+            onLogout={handleLogout}
             onBilling={() => navigate('/billing')}
           />
         ) : <Navigate to="/login" />
@@ -117,7 +121,7 @@ const App: React.FC = () => {
         ) : <Navigate to="/login" />
       } />
 
-      <Route path="/project/:projectId" element={currentUser ? <ProjectRouteWrapper /> : <Navigate to="/login" />}>
+      <Route path="/project/:projectId" element={currentUser ? <ProjectRouteWrapper pm={pm} user={currentUser} onLogout={handleLogout} /> : <Navigate to="/login" />}>
         <Route index element={<Navigate to="dashboard" />} />
         <Route path="dashboard" element={
           pm.activeResult ? (
@@ -125,7 +129,7 @@ const App: React.FC = () => {
               project={pm.project!} result={pm.activeResult} isCalculating={pm.isCalculating}
               onUpdateMetadata={(m) => pm.updateProject({ metadata: m })} 
             />
-          ) : null
+          ) : <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Calculando...</div>
         } />
         <Route path="editor" element={
           pm.activeResult ? (
