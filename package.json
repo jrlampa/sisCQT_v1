@@ -17,8 +17,10 @@
     "leaflet": "1.9.4",
     "react-leaflet": "4.2.1",
     "jszip": "3.10.1",
-    "express": "^5.2.1",
-    "@prisma/client": "^7.3.0"
+    "@prisma/client": "7.3.0",
+    "express": "5.2.1",
+    "path": "1.0.1",
+    "url": "0.11.4"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
