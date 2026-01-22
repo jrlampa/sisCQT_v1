@@ -1,14 +1,16 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
 export class GeminiService {
-  private static getAI() {
-    // DO: Initialize Gemini API using named parameter and process.env.API_KEY
-    return new GoogleGenAI({ apiKey: process.env.API_KEY });
+  private static getAI(apiKey: string) {
+    return new GoogleGenAI(apiKey);
   }
 
   static async askEngineeringQuestion(prompt: string, context?: any): Promise<string> {
-    const ai = this.getAI();
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY is not configured on the server.");
+    }
+    const ai = this.getAI(apiKey);
     const systemInstruction = `Você é o "Theseus", um engenheiro sênior especialista em redes de distribuição da IM3 Brasil.
     
     INSTRUÇÕES:
@@ -19,17 +21,11 @@ export class GeminiService {
     5. Como estamos em modo Scale-up, foque em soluções de melhor custo-benefício.`;
     
     try {
-      // DO: Use gemini-3-pro-preview for complex STEM engineering tasks
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview', 
-        contents: `CONTEXTO TÉCNICO: ${JSON.stringify(context || {})} \n\nPERGUNTA: ${prompt}`,
-        config: { 
-          systemInstruction,
-          temperature: 0.1 
-        }
-      });
-      // DO: Access text output using .text property on response object
-      return response.text || "Sem resposta do motor de IA.";
+      const model = ai.getGenerativeModel({ model: "gemini-1.0-pro", systemInstruction });
+      const fullPrompt = `CONTEXTO TÉCNICO: ${JSON.stringify(context || {})} \n\nPERGUNTA: ${prompt}`;
+      const result = await model.generateContent(fullPrompt);
+      const response = result.response;
+      return response.text() || "Sem resposta do motor de IA.";
     } catch (error) {
       console.error("Gemini Chat Error:", error);
       return "Erro na comunicação com a IA.";
@@ -42,16 +38,18 @@ export class GeminiService {
     
     /* 
     // Código preservado para futura reativação
-    const ai = this.getAI();
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY is not configured on the server.");
+    }
+    const ai = this.getAI(apiKey);
     const prompt = `Analise esta foto de infraestrutura de rede elétrica e forneça um relatório técnico...`;
     try {
+      const model = ai.getGenerativeModel({ model: "gemini-pro-vision" });
       const imagePart = { inlineData: { mimeType: 'image/jpeg', data: base64Image } };
-      // DO: Use gemini-3-pro-preview for complex multi-modal reasoning tasks
-      const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: { parts: [imagePart, { text: prompt }] },
-      });
-      return response.text || "Não foi possível realizar a identificação visual.";
+      const result = await model.generateContent([prompt, imagePart]);
+      const response = result.response;
+      return response.text() || "Não foi possível realizar a identificação visual.";
     } catch (error) {
       console.error("Gemini Vision Error:", error);
       return "Falha ao processar análise visual.";

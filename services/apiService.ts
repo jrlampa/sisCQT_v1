@@ -1,5 +1,4 @@
 import { Project, EngineResult, User, NetworkNode } from '../types.ts';
-import { GeminiService } from './geminiService.ts';
 
 const API_BASE = '/api';
 const TOKEN_KEY = 'sisqat_auth_token';
@@ -85,6 +84,10 @@ export class ApiService {
   }
 
   static async askAI(prompt: string, context: any): Promise<string> {
-    return GeminiService.askEngineeringQuestion(prompt, context);
+    const response = await this.request<{ result: string }>('/gemini/ask', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, context })
+    });
+    return response.result;
   }
 }

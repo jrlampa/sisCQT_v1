@@ -3,13 +3,7 @@ import React, { useState } from 'react';
 import { Project, Scenario, EngineResult } from '../types';
 import UnifilarDiagram from './UnifilarDiagram';
 import { useToast } from '../context/ToastContext.tsx';
-
-interface ProjectReportProps {
-  project: Project;
-  activeScenario: Scenario;
-  result: EngineResult;
-  allResults: Record<string, EngineResult>; // Novo prop
-}
+import { useProject } from '../context/ProjectContext';
 
 const LogoReportIM3 = () => (
   <div className="flex items-center font-bold text-[#003399] select-none">
@@ -25,7 +19,12 @@ const LogoReportIM3 = () => (
   </div>
 );
 
-const ProjectReport: React.FC<ProjectReportProps> = ({ project, activeScenario, result, allResults }) => {
+const ProjectReport: React.FC = () => {
+  const { project, activeScenario, activeResult: result, allResults } = useProject();
+
+  if (!project || !activeScenario || !result || !allResults) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Relatório...</div>;
+  }
   const { showToast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const currentDate = new Date().toLocaleDateString('pt-BR');

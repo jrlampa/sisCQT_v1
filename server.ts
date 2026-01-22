@@ -2,19 +2,12 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ElectricalEngine } from './services/electricalEngine.ts';
+import { GeminiService } from './services/geminiService.ts';
 import { gisController } from './controllers/gisController.ts';
 import { authMiddleware } from './middlewares/authMiddleware.ts';
+import { prisma } from './utils/db.ts';
 
-// Mock Prisma for preview environment stability
-const prisma = {
-  project: {
-    findMany: async () => [],
-    upsert: async (data: any) => data.create
-  },
-  user: {
-    upsert: async (data: any) => data.create
-  }
-};
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,12 +65,40 @@ app.post('/api/calculate', authMiddleware as any, (req, res) => {
   }
 });
 
+app.post('/api/gemini/ask', authMiddleware as any, async (req, res) => {
+  const { prompt, context } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
+
+  try {
+    const result = await GeminiService.askEngineeringQuestion(prompt, context);
+    res.json({ result });
+  } catch (error: any) {
+    console.error("Error in /api/gemini/ask:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GIS Routes
+app.get('/api/gis/nodes', authMiddleware as any, gisController.getNodes);
+app.post('/api/gis/nodes', authMiddleware as any, gisController.createNode);
+
+app.post('/api/optimize', authMiddleware as any, (req, res) => {
+  const { nodes } = req.body;
+  // Placeholder: A lógica de otimização real seria implementada aqui.
+  // Por agora, apenas retornamos os nós recebidos para simular sucesso.
+  console.log('Optimization requested, returning mock data.');
+  res.json(nodes);
+});
+
 // Static files handling
 const staticDir = path.resolve(__dirname);
 app.use(express.static(staticDir) as any);
 
 // SPA Fallback
-app.get('*', (req: any, res: any) => {
+// A MUDANÇA É AQUI: Trocámos '*' por /.*/ (Express 5 exige Regex ou sintaxe diferente)
+app.get(/.*/, (req: any, res: any) => {
   if (req.url.startsWith('/api')) return res.status(404).json({ error: 'API not found' });
   res.sendFile(path.join(staticDir, 'index.html'));
 });

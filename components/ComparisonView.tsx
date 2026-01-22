@@ -1,22 +1,13 @@
 
 import React, { useState } from 'react';
-import { Project, EngineResult } from '../types';
+import { useProject } from '../context/ProjectContext';
 
-interface ComparisonViewProps {
-  project: Project;
-  results: Record<string, EngineResult>;
-  onSwitchScenario: (id: string) => void;
-  onCloneScenario: () => void;
-  onCreateEmptyScenario: () => void;
-}
+const ComparisonView: React.FC = () => {
+  const { project, allResults: results, updateProject, cloneScenario, createEmptyScenario } = useProject();
 
-const ComparisonView: React.FC<ComparisonViewProps> = ({ 
-  project, 
-  results, 
-  onSwitchScenario, 
-  onCloneScenario, 
-  onCreateEmptyScenario 
-}) => {
+  if (!project || !results) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Comparador...</div>;
+  }
   const [showMenu, setShowMenu] = useState(false);
   const scenarios = project.scenarios;
   
@@ -29,8 +20,8 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
   const bestMaxCqt = getBest('maxCqt', 'min');
 
   const handleCreate = (type: 'empty' | 'clone') => {
-    if (type === 'empty') onCreateEmptyScenario();
-    else onCloneScenario();
+    if (type === 'empty') createEmptyScenario();
+    else cloneScenario();
     setShowMenu(false);
   };
 
@@ -45,7 +36,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
         <div className="relative">
           <button 
             onClick={() => setShowMenu(!showMenu)}
-            className="bg-[#004a80] text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:scale-105 transition-all flex items-center gap-2"
+            className="bg-[#004a80] text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-100 hover:scale-105 transition-all flex items-center gap-2"
           >
             <span>➕</span> Novo Cenário
           </button>
@@ -85,7 +76,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-sm font-black text-gray-800">{s.name}</span>
                     <button 
-                      onClick={() => onSwitchScenario(s.id)}
+                      onClick={() => updateProject({ activeScenarioId: s.id })}
                       className={`px-4 py-1.5 text-[10px] font-bold rounded-full shadow-lg transition-all ${project.activeScenarioId === s.id ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:scale-105'}`}
                     >
                       {project.activeScenarioId === s.id ? 'Ativo' : 'Selecionar'}

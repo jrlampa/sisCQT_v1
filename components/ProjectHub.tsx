@@ -1,32 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { Project, User } from '../types';
 import { useToast } from '../context/ToastContext.tsx';
-import { createSampleProject } from '../utils/projectUtils';
 import { KmlService } from '../services/kmlService';
+import { useProject } from '../context/ProjectContext';
 
-interface ProjectHubProps {
-  projects: Record<string, Project>;
-  user: User;
-  onSelect: (id: string) => void;
-  onCreate: (name: string, sob: string, pe: string, lat: number, lng: number) => void;
-  onUpdate: (id: string, name: string, sob: string, pe: string, lat: number, lng: number) => void;
-  onDelete: (id: string) => void;
-  onDuplicate: (id: string) => void;
-  onLogout: () => void;
-  onBilling: () => void;
-}
-
-const ProjectHub: React.FC<ProjectHubProps> = ({ 
-  projects, user, onSelect, onCreate, onUpdate, onDelete, onDuplicate, onLogout, onBilling 
-}) => {
+const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => void; }> = ({ user, onLogout, onBilling }) => {
   const { showToast } = useToast();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-  const [formProject, setFormProject] = useState({ name: '', sob: '', pe: '', lat: '-22.90', lng: '-43.17' });
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { savedProjects, createProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
 
-  const projectList = (Object.values(projects) as Project[]).sort((a, b) => 
+  const projectList = (Object.values(savedProjects) as Project[]).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
 
@@ -34,8 +16,16 @@ const ProjectHub: React.FC<ProjectHubProps> = ({
     const { name, sob, pe, lat, lng } = formProject;
     if (!name.trim() || !sob.trim()) return showToast("Preencha os campos obrigatórios", "warning");
     
-    if (editingProjectId) onUpdate(editingProjectId, name, sob, pe, parseFloat(lat), parseFloat(lng));
-    else onCreate(name, sob, pe, parseFloat(lat), parseFloat(lng));
+    if (editingProjectId) {
+      updateProject({ 
+        id: editingProjectId, 
+        name, 
+        metadata: { sob, electricPoint: pe, lat: parseFloat(lat), lng: parseFloat(lng) } 
+      });
+    }
+    else {
+      createProject(name, sob, pe, parseFloat(lat), parseFloat(lng));
+    }
     
     setIsModalOpen(false);
   };
@@ -67,14 +57,14 @@ const ProjectHub: React.FC<ProjectHubProps> = ({
             <div className="col-span-full py-32 flex flex-col items-center opacity-30">
                <div className="text-7xl mb-6">📁</div>
                <p className="font-black text-sm uppercase tracking-[0.2em]">Nenhum estudo encontrado</p>
-               <button onClick={() => onCreate('Estudo Exemplo', '2024.0001', 'BT-RJ-01', -22.9, -43.1)} className="mt-6 text-xs font-black text-blue-600 underline">Carregar Demo</button>
+               <button onClick={() => handleCreateProject('Estudo Exemplo', '2024.0001', 'BT-RJ-01', -22.9, -43.1)} className="mt-6 text-xs font-black text-blue-600 underline">Carregar Demo</button>
             </div>
           ) : (
             projectList.map((prj) => (
-              <div key={prj.id} onClick={() => onSelect(prj.id)} className="glass-dark p-8 rounded-[40px] group cursor-pointer hover:scale-[1.02] hover:shadow-2xl transition-all duration-500 relative border-white/60">
+              <div key={prj.id} onClick={() => handleSelectProject(prj.id)} className="glass-dark p-8 rounded-[40px] group cursor-pointer hover:scale-[1.02] hover:shadow-2xl transition-all duration-500 relative border-white/60">
                 <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                   <button onClick={(e) => { e.stopPropagation(); onDuplicate(prj.id); }} className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-sm shadow-xl">👯</button>
-                   <button onClick={(e) => { e.stopPropagation(); if(confirm('Excluir?')) onDelete(prj.id); }} className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-sm text-red-500 shadow-xl">✕</button>
+                   <button onClick={(e) => { e.stopPropagation(); handleDuplicateProject(prj.id); }} className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-sm shadow-xl">👯</button>
+                   <button onClick={(e) => { e.stopPropagation(); handleDeleteProject(prj.id); }} className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-sm text-red-500 shadow-xl">✕</button>
                 </div>
                 <div className="flex flex-col h-full">
                    <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-3 py-1 rounded-full w-fit uppercase tracking-widest mb-6">SOB {prj.metadata.sob}</span>
@@ -123,7 +113,7 @@ const ProjectHub: React.FC<ProjectHubProps> = ({
           setIsImporting(true);
           try {
             const data = await KmlService.parseFile(file);
-            onCreate(file.name, 'KML.' + Math.floor(Math.random()*1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
+            handleCreateProject(file.name, 'KML.' + Math.floor(Math.random()*1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
             showToast("Importação KML concluída!", "success");
           } catch(err) { showToast("Falha no KML", "error"); }
           finally { setIsImporting(false); }

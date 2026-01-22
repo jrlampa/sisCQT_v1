@@ -1,0 +1,27 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  // Isto é importante para funcionar no Docker (Alpine Linux)
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modelos básicos para o comando "generate" funcionar
+// (Podes ajustar isto mais tarde conforme a necessidade real do projeto)
+model User {
+  id    String @id @default(uuid())
+  email String @unique
+  name  String?
+}
+
+model Project {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

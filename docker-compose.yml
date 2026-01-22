@@ -13,6 +13,10 @@ services:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password123
       - POSTGRES_DB=siscqt_db
+      # A sua chave da API da Gemini deve ser colocada num ficheiro .env
+      # Exemplo de .env:
+      # GEMINI_API_KEY=AIzaSy...
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     volumes:
       - .:/app # Sincroniza a tua pasta local com o Docker (Hot Reload)
       - /app/node_modules # Evita apagar os módulos dentro do Docker

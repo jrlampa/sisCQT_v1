@@ -233,24 +233,19 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
   );
 });
 
-interface ProjectEditorProps {
-  project: Project & Scenario;
-  onUpdate: (nodes: NetworkNode[]) => void;
-  onUpdateParams: (params: ProjectParams) => void;
-  onOptimize: () => void;
-  onRecalculate: () => void;
-  calculatedNodes: NetworkNode[];
-  result: EngineResult;
-}
-
-const ProjectEditor: React.FC<ProjectEditorProps> = ({ 
-  project, onUpdate, onUpdateParams, onOptimize, onRecalculate, calculatedNodes, result 
-}) => {
+const ProjectEditor: React.FC = () => {
   const { showToast } = useToast();
+  const { project, activeScenario, updateActiveScenario, optimizeActive, forceRecalculate, activeResult } = useProject();
+
+  if (!project || !activeScenario || !activeResult) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Editor...</div>;
+  }
+  const currentProjectAndScenario = { ...project, ...activeScenario };
+  const calculatedNodes = activeResult.nodes;
   const [view, setView] = useState<'table' | 'diagram'>('table');
 
   const handleUpdateField = useCallback((nodeId: string, field: string, value: any) => {
-    const newNodes = project.nodes.map(n => {
+    const newNodes = currentProjectAndScenario.nodes.map(n => {
       if (n.id === nodeId) {
         if (['mono', 'bi', 'tri', 'pointQty', 'pointKva', 'ipType', 'ipQty', 'solarKva', 'solarQty'].includes(field)) {
           return { ...n, loads: { ...n.loads, [field]: value } };
@@ -259,25 +254,25 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
       }
       return n;
     });
-    onUpdate(newNodes);
-  }, [project.nodes, onUpdate]);
+    updateActiveScenario({ nodes: newNodes });
+  }, [currentProjectAndScenario.nodes, updateActiveScenario]);
 
   const handleRemove = useCallback((nodeId: string) => {
-    onUpdate(project.nodes.filter(n => n.id !== nodeId));
+    updateActiveScenario({ nodes: currentProjectAndScenario.nodes.filter(n => n.id !== nodeId) });
     showToast(`Ponto ${nodeId} removido.`);
-  }, [project.nodes, onUpdate, showToast]);
+  }, [currentProjectAndScenario.nodes, updateActiveScenario, showToast]);
 
   const handleAddNode = () => {
-    const nextId = (Math.max(...project.nodes.map(n => parseInt(n.id) || 0)) + 1).toString();
-    const parentId = project.nodes[project.nodes.length - 1].id;
+    const nextId = (Math.max(...currentProjectAndScenario.nodes.map(n => parseInt(n.id) || 0)) + 1).toString();
+    const parentId = currentProjectAndScenario.nodes[currentProjectAndScenario.nodes.length - 1].id;
     const newNode: NetworkNode = {
       id: nextId,
       parentId,
       meters: 30,
-      cable: project.nodes[0].cable,
+      cable: currentProjectAndScenario.nodes[0].cable,
       loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 }
     };
-    onUpdate([...project.nodes, newNode]);
+    updateActiveScenario({ nodes: [...currentProjectAndScenario.nodes, newNode] });
     showToast(`Ponto ${nextId} adicionado.`);
   };
 
@@ -289,7 +284,7 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
           <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Gestão de ativos e fluxos de carga em tempo real</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={onOptimize} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all">Dimensionar Cabos</button>
+          <button onClick={optimizeActive} className="px-6 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all">Dimensionar Cabos</button>
           <button onClick={handleAddNode} className="px-6 py-3 bg-[#004a80] text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all">+ Novo Poste</button>
         </div>
       </header>
@@ -318,16 +313,16 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
               </tr>
             </thead>
             <tbody>
-              {project.nodes.map((node, i) => (
+              {currentProjectAndScenario.nodes.map((node, i) => (
                 <EditorRow 
                   key={node.id}
                   node={node}
                   rowIndex={i}
                   resNode={calculatedNodes.find(rn => rn.id === node.id)}
                   isTrafo={node.id === 'TRAFO'}
-                  cables={project.cables}
-                  ipTypes={project.ipTypes}
-                  profile={project.params.profile}
+                  cables={currentProjectAndScenario.cables}
+                  ipTypes={currentProjectAndScenario.ipTypes}
+                  profile={currentProjectAndScenario.params.profile}
                   onUpdateField={handleUpdateField}
                   onRemove={handleRemove}
                 />
@@ -339,12 +334,12 @@ const ProjectEditor: React.FC<ProjectEditorProps> = ({
         <div className="h-[700px]">
           <UnifilarDiagram 
             interactive
-            nodes={project.nodes}
-            result={result}
-            cables={project.cables}
+            nodes={currentProjectAndScenario.nodes}
+            result={activeResult}
+            cables={currentProjectAndScenario.cables}
             onUpdateNode={handleUpdateField}
             onRemoveNode={handleRemove}
-            ipTypes={project.ipTypes}
+            ipTypes={currentProjectAndScenario.ipTypes}
           />
         </div>
       )}

@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Project, EngineResult, ProjectParams } from '../types';
 import { 
   LineChart, 
   Line, 
@@ -13,16 +12,15 @@ import {
   Area,
   ReferenceLine
 } from 'recharts';
+import { useProject } from '../context/ProjectContext';
 
-interface SolarDashboardProps {
-  project: Project;
-  result: EngineResult;
-  onUpdateParams?: (params: ProjectParams) => void;
-}
+const SolarDashboard: React.FC = () => {
+  const { project, activeScenario, activeResult: result, updateActiveScenario } = useProject();
 
-const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result, onUpdateParams }) => {
+  if (!project || !activeScenario || !result) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Dashboard Solar...</div>;
+  }
   const { gdImpact } = result;
-  const activeScenario = project.scenarios.find(s => s.id === project.activeScenarioId)!;
 
   // Gerar perfil de tensão Trafo -> Fim de Linha (Pior caso)
   const voltageProfileData = result.nodes
@@ -77,9 +75,9 @@ const SolarDashboard: React.FC<SolarDashboardProps> = ({ project, result, onUpda
           </div>
         </div>
         <div className="flex gap-4">
-           {onUpdateParams && (
+           {updateActiveScenario && (
              <button 
-                onClick={() => onUpdateParams({...activeScenario.params, includeGdInQt: !activeScenario.params.includeGdInQt})}
+                onClick={() => updateActiveScenario({params: {...activeScenario.params, includeGdInQt: !activeScenario.params.includeGdInQt}})}
                 className={`px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all border-2 ${activeScenario.params.includeGdInQt ? 'bg-orange-500 border-orange-600 text-white shadow-lg animate-pulse' : 'bg-white border-blue-100 text-blue-400'}`}
              >
                 {activeScenario.params.includeGdInQt ? 'Impacto na QT: ATIVO' : 'Impacto na QT: INATIVO'}

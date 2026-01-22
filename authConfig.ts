@@ -11,7 +11,7 @@ export const msalConfig: Configuration = {
         authority: "https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31",
         
         // Redirecionamento dinâmico: local ou produção
-        redirectUri: isLocalhost ? 'http://localhost:5173' : window.location.origin, 
+        redirectUri: isLocalhost ? 'http://localhost:3000' : window.location.origin, 
     },
     cache: {
         cacheLocation: "sessionStorage",

@@ -1,9 +1,6 @@
 
 import { Request, Response } from 'express';
-// Using import instead of require to fix 'require is not defined' error
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/db';
 
 export const gisController = {
   // Retorna FeatureCollection GeoJSON para consumo direto pelo Leaflet

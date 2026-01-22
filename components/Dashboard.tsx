@@ -1,5 +1,4 @@
 import React from 'react';
-import { Project, EngineResult } from '../types';
 import { 
   BarChart, 
   Bar, 
@@ -9,15 +8,13 @@ import {
   Tooltip, 
   ResponsiveContainer
 } from 'recharts';
+import { useProject } from '../context/ProjectContext';
 
-interface DashboardProps {
-  project: Project;
-  result: EngineResult;
-  isCalculating?: boolean;
-  onUpdateMetadata: (metadata: any) => void;
-}
-
-const Dashboard: React.FC<DashboardProps> = ({ project, result, isCalculating }) => {
+const Dashboard: React.FC = () => {
+  const { project, activeResult: result, isCalculating, updateProject } = useProject();
+  if (!project || !result) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Dashboard...</div>;
+  }
   const stats = [
     { label: 'Carga Trafo', value: `${result.kpis.trafoOccupation.toFixed(1)}%`, icon: '🏬', status: result.kpis.trafoOccupation > 100 ? 'critical' : 'ok' },
     { label: 'Queda de Tensão', value: `${result.kpis.maxCqt.toFixed(2)}%`, icon: '📉', status: result.kpis.maxCqt > 6 ? 'warning' : 'ok' },

@@ -1,15 +1,14 @@
 
 import React from 'react';
-import { Project, EngineResult } from '../types';
 import GISMap from './GISMap';
+import { useProject } from '../context/ProjectContext';
 
-interface GISViewProps {
-  project: Project;
-  result: EngineResult;
-  onUpdateNodes: (nodes: any[]) => void;
-}
+const GISView: React.FC = () => {
+  const { project, activeResult: result, updateActiveScenario } = useProject();
 
-const GISView: React.FC<GISViewProps> = ({ project, result, onUpdateNodes }) => {
+  if (!project || !result) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando GIS View...</div>;
+  }
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500">
       <header className="flex justify-between items-center bg-white/40 p-6 rounded-[32px] border border-white/60 shadow-sm">

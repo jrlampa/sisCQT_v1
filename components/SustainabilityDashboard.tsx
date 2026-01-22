@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { Project, EngineResult } from '../types';
 import { 
   BarChart, 
   Bar, 
@@ -13,13 +12,14 @@ import {
   Pie, 
   Cell 
 } from 'recharts';
+import { useProject } from '../context/ProjectContext';
 
-interface SustainabilityDashboardProps {
-  project: Project;
-  result: EngineResult;
-}
+const SustainabilityDashboard: React.FC = () => {
+  const { project, activeResult: result } = useProject();
 
-const SustainabilityDashboard: React.FC<SustainabilityDashboardProps> = ({ project, result }) => {
+  if (!project || !result) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Dashboard de Sustentabilidade...</div>;
+  }
   const { sustainability } = result;
 
   const nodeLossData = result.nodes

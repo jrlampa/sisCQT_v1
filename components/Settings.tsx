@@ -1,21 +1,20 @@
 
 import React, { useState } from 'react';
 import { Project, ReportConfig } from '../types';
+import { useProject } from '../context/ProjectContext';
 
-interface SettingsProps {
-  project: Project;
-  onUpdateCables: (cables: any) => void;
-  onUpdateIpTypes: (ips: any) => void;
-  onUpdateReportConfig: (config: ReportConfig) => void;
-}
+const Settings: React.FC = () => {
+  const { project, updateProject } = useProject();
 
-const Settings: React.FC<SettingsProps> = ({ project, onUpdateCables, onUpdateIpTypes, onUpdateReportConfig }) => {
+  if (!project) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Configurações...</div>;
+  }
   const [isSendingLogs, setIsSendingLogs] = useState(false);
 
   const handleDeleteCable = (name: string) => {
     const newCables = { ...project.cables };
     delete newCables[name];
-    onUpdateCables(newCables);
+    updateProject({ cables: newCables });
   };
 
   const handleSendLogs = () => {
@@ -92,7 +91,7 @@ const Settings: React.FC<SettingsProps> = ({ project, onUpdateCables, onUpdateIp
                    type="checkbox" 
                    className="w-5 h-5 rounded-lg border-2 border-blue-200 text-blue-600 focus:ring-blue-500"
                    checked={(project.reportConfig as any)[item.id]}
-                   onChange={(e) => onUpdateReportConfig({ ...project.reportConfig, [item.id]: e.target.checked })}
+                   onChange={(e) => updateProject({ reportConfig: { ...project.reportConfig, [item.id]: e.target.checked } })}
                  />
                  <span className="text-sm font-bold text-gray-600">{item.label}</span>
                </label>
@@ -146,7 +145,7 @@ const Settings: React.FC<SettingsProps> = ({ project, onUpdateCables, onUpdateIp
                     value={kva}
                     onChange={(e) => {
                       const newIps = { ...project.ipTypes, [type]: Number(e.target.value) };
-                      onUpdateIpTypes(newIps);
+                      updateProject({ ipTypes: newIps });
                     }}
                   />
                    <span className="text-[7px] font-black text-gray-400 uppercase tracking-widest">Consumo Unitário (kVA)</span>

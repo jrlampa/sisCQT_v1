@@ -3,8 +3,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ApiService } from '../services/apiService';
 import { Project, EngineResult } from '../types';
 import { DEFAULT_CABLES } from '../constants';
+import { useProject } from '../context/ProjectContext';
 
-const Chatbot: React.FC<{ project: Project; result: EngineResult }> = ({ project, result }) => {
+const Chatbot: React.FC = () => {
+  const { project, activeResult: result } = useProject();
+
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
     { role: 'ai', text: 'Olá Engenheiro! Sou o Theseus. Analisei os fluxos de carga e as quedas de tensão do seu cenário atual. Estou pronto para otimizar essa rede com você. O que deseja validar agora?' }
   ]);
@@ -15,6 +18,10 @@ const Chatbot: React.FC<{ project: Project; result: EngineResult }> = ({ project
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
+
+  if (!project || !result) {
+    return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Chatbot...</div>;
+  }
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
