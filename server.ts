@@ -104,6 +104,5 @@ app.get(/.*/, (req: any, res: any) => {
 });
 
 app.listen(PORT, () => {
-  console.log('DATABASE_URL:', process.env.DATABASE_URL);
   console.log(`>>> siSCQT Enterprise active on port ${PORT}`);
 });
