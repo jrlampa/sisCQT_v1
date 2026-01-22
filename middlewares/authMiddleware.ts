@@ -1,8 +1,8 @@
 
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-// Use require for Prisma to bypass export member error in some environments
-const { PrismaClient } = require('@prisma/client');
+// Using import instead of require to fix 'require is not defined' error
+import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
