@@ -1,8 +1,7 @@
-
 import React, { useState, useRef } from 'react';
-import { Project, User, NetworkNode } from '../types';
+import { Project, User } from '../types';
 import { useToast } from '../context/ToastContext.tsx';
-import { createSampleProject, createTemplateProject } from '../utils/projectUtils';
+import { createSampleProject } from '../utils/projectUtils';
 import { KmlService } from '../services/kmlService';
 
 interface ProjectHubProps {
@@ -15,22 +14,9 @@ interface ProjectHubProps {
   onDuplicate: (id: string) => void;
   onLogout: () => void;
   onBilling: () => void;
-  // Adicionamos um callback opcional para criação avançada se necessário, 
-  // mas aqui usaremos o padrão e faremos um "update" manual se o useProjectManagement permitir.
-  // Para simplificar, vamos expor uma nova prop ou usar a lógica interna.
 }
 
-const LogoSisCQT = () => (
-  <div className="flex items-baseline font-black tracking-tighter text-[#004a80] select-none text-2xl">
-    <span className="lowercase">si</span>
-    <span className="uppercase">S</span>
-    <span className="uppercase ml-1">C</span>
-    <span className="uppercase ml-0.5">Q</span>
-    <span className="uppercase ml-0.5">T</span>
-  </div>
-);
-
-const ProjectHub: React.FC<ProjectHubProps & { onImport?: (project: Project) => void }> = ({ 
+const ProjectHub: React.FC<ProjectHubProps> = ({ 
   projects, user, onSelect, onCreate, onUpdate, onDelete, onDuplicate, onLogout, onBilling 
 }) => {
   const { showToast } = useToast();
@@ -44,252 +30,105 @@ const ProjectHub: React.FC<ProjectHubProps & { onImport?: (project: Project) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
 
-  const parseCoordinate = (val: string): number => {
-    if (typeof val !== 'string') return 0;
-    const normalized = val.replace(',', '.').replace(/[^\d.-]/g, '');
-    return parseFloat(normalized);
-  };
-
-  const handleKmlImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsImporting(true);
-    showToast("Processando camadas geoespaciais...", "info");
-
-    try {
-      const { nodes, metadata } = await KmlService.parseFile(file);
-      
-      // Criar o projeto base
-      const name = `Importado: ${file.name.split('.')[0]}`;
-      const sob = `KML.${Math.floor(Math.random() * 1000)}`;
-      const pe = `BT-KML-${Math.floor(Math.random() * 100)}`;
-      
-      // Aqui, como não temos uma função "createWithNodes" exposta, 
-      // vamos simular a criação e depois o usuário verá os nós no editor.
-      // Em uma implementação real, o useProjectManagement teria um create avançado.
-      // Vou usar o onCreate padrão e depois o sistema precisará lidar com a persistência dos nós.
-      // Como este é um app client-side, podemos injetar os nós no template.
-      
-      // NOTA: Para este protótipo, vamos criar um projeto e o useProjectManagement 
-      // precisaria ser atualizado para aceitar os nós. Como não quero mudar o hook agora,
-      // vou salvar temporariamente no localStorage para o hook pegar.
-      
-      const newProject = createTemplateProject(name, sob, pe, metadata.lat || 0, metadata.lng || 0);
-      newProject.scenarios[0].nodes = nodes;
-      
-      // Persistência manual rápida para garantir que apareça no Hub imediatamente
-      const currentHub = JSON.parse(localStorage.getItem('sisqat_enterprise_hub_v5') || '{}');
-      currentHub[newProject.id] = newProject;
-      localStorage.setItem('sisqat_enterprise_hub_v5', JSON.stringify(currentHub));
-      
-      showToast(`${nodes.length} pontos de rede importados com sucesso!`, "success");
-      
-      // Recarrega a página ou redireciona
-      window.location.reload(); 
-    } catch (err: any) {
-      showToast(`Erro na importação: ${err.message}`, "error");
-    } finally {
-      setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  const openCreateModal = () => {
-    setEditingProjectId(null);
-    setFormProject({ name: '', sob: '', pe: '', lat: '-22.90', lng: '-43.17' });
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (e: React.MouseEvent, prj: Project) => {
-    e.stopPropagation();
-    setEditingProjectId(prj.id);
-    setFormProject({ 
-      name: prj.name, 
-      sob: prj.metadata.sob, 
-      pe: prj.metadata.electricPoint, 
-      lat: prj.metadata.lat.toString(), 
-      lng: prj.metadata.lng.toString() 
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleLoadSample = () => {
-    const sample = createSampleProject();
-    if (projects[sample.id]) {
-        onSelect(sample.id);
-        return;
-    }
-    onCreate(sample.name, sample.metadata.sob, sample.metadata.electricPoint, sample.metadata.lat, sample.metadata.lng);
-  };
-
   const handleFormSubmit = () => {
     const { name, sob, pe, lat, lng } = formProject;
-    const latNum = parseCoordinate(lat);
-    const lngNum = parseCoordinate(lng);
-
-    if (!name.trim() || !sob.trim() || !pe.trim()) {
-      showToast("SOB, Ponto Elétrico e Nome são obrigatórios.", "warning");
-      return;
-    }
-
-    if (isNaN(latNum) || isNaN(lngNum)) {
-      showToast("Latitude e Longitude inválidas.", "error");
-      return;
-    }
-
-    if (editingProjectId) {
-      onUpdate(editingProjectId, name, sob, pe, latNum, lngNum);
-    } else {
-      onCreate(name, sob, pe, latNum, lngNum);
-    }
+    if (!name.trim() || !sob.trim()) return showToast("Preencha os campos obrigatórios", "warning");
+    
+    if (editingProjectId) onUpdate(editingProjectId, name, sob, pe, parseFloat(lat), parseFloat(lng));
+    else onCreate(name, sob, pe, parseFloat(lat), parseFloat(lng));
     
     setIsModalOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f4ff] p-8 flex flex-col items-center animate-in fade-in duration-700">
-      <div className="w-full max-w-[1200px] flex flex-col flex-1 border-[3px] border-blue-500 rounded-lg overflow-hidden shadow-2xl bg-[#f0f4ff]">
+    <div className="min-h-screen bg-transparent p-10 flex flex-col items-center animate-in fade-in duration-1000">
+      <div className="w-full max-w-6xl flex flex-col gap-10">
         
-        <header className="w-full p-6 flex justify-between items-center bg-[#f0f4ff] border-b border-blue-100">
-          <div className="flex items-center gap-6">
-            <LogoSisCQT />
+        <header className="w-full flex justify-between items-center glass p-8 rounded-[40px] border-white/80 shadow-2xl">
+          <div className="flex items-center gap-8">
+            <div className="text-3xl font-black tracking-tighter text-blue-600">siSCQT</div>
+            <div className="h-10 w-px bg-gray-200"></div>
             <div className="flex flex-col">
-              <h1 className="text-lg font-black text-[#004a80] uppercase tracking-tighter leading-none">HUB DE PROJETOS</h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">ENTERPRISE AI</span>
-                <span className="text-gray-300">•</span>
-                <span className="text-[9px] font-bold text-gray-500">{user.email}</span>
-              </div>
+              <h1 className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-1">Hub de Engenharia</h1>
+              <span className="text-[10px] font-bold text-gray-700">{user.email}</span>
             </div>
           </div>
 
-          <div className="flex gap-4">
-            <button onClick={onBilling} className="bg-white/80 border border-blue-100 px-6 py-2.5 rounded-full font-black text-blue-600 text-[10px] uppercase tracking-widest shadow-sm hover:bg-white transition-all">💳 PLANO: {user.plan.toUpperCase()}</button>
-            <button onClick={onLogout} className="bg-red-50 text-red-500 px-6 py-2.5 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">SAIR</button>
-            <div className="flex bg-white/40 p-1 rounded-full border border-blue-100">
-               <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept=".kml,.kmz" 
-                onChange={handleKmlImport} 
-               />
-               <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isImporting}
-                className="bg-white text-blue-600 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-blue-50 transition-all flex items-center gap-2"
-               >
-                 {isImporting ? '⏳ IMPORTANDO...' : '🌍 IMPORTAR KML'}
-               </button>
-               <button onClick={openCreateModal} className="bg-[#004a80] text-white px-8 py-2 rounded-full font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-200 hover:scale-105 transition-all">+ NOVO PROJETO</button>
-            </div>
+          <div className="flex gap-3">
+            <button onClick={onBilling} className="bg-white/60 px-6 py-3 rounded-2xl font-black text-blue-600 text-[10px] uppercase tracking-widest border border-white hover:bg-white transition-all shadow-sm">💳 {user.plan}</button>
+            <button onClick={() => fileInputRef.current?.click()} className="bg-white/60 px-6 py-3 rounded-2xl font-black text-gray-600 text-[10px] uppercase tracking-widest border border-white hover:bg-white transition-all shadow-sm">🌍 Importar</button>
+            <button onClick={() => { setEditingProjectId(null); setIsModalOpen(true); }} className="bg-blue-600 px-8 py-3 rounded-2xl font-black text-white text-[10px] uppercase tracking-widest shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all">+ Novo Projeto</button>
+            <button onClick={onLogout} className="bg-red-50 text-red-500 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Sair</button>
           </div>
         </header>
 
-        <main className="flex-1 p-12 flex flex-col items-center justify-center relative">
-          <div className="w-full max-w-5xl min-h-[400px] bg-white rounded-[40px] shadow-sm flex flex-col items-center border border-blue-100/50 p-8 relative overflow-hidden">
-            <div className="absolute inset-4 border-2 border-dashed border-blue-50 rounded-[32px] pointer-events-none"></div>
-
-            {projectList.length === 0 ? (
-              <div className="flex flex-col items-center gap-6 z-10 py-20">
-                <div className="w-24 h-24 bg-orange-50 rounded-2xl flex items-center justify-center text-5xl">📁</div>
-                <h2 className="text-3xl font-black text-gray-300 uppercase tracking-tighter">Hub de Projetos Vazio</h2>
-                <div className="flex gap-4 mt-2">
-                    <button onClick={openCreateModal} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-blue-200 hover:scale-105 transition-all">Criar Novo</button>
-                    <button onClick={handleLoadSample} className="bg-orange-500 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-orange-200 hover:scale-105 transition-all">Carregar Exemplo</button>
+        <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {projectList.length === 0 ? (
+            <div className="col-span-full py-32 flex flex-col items-center opacity-30">
+               <div className="text-7xl mb-6">📁</div>
+               <p className="font-black text-sm uppercase tracking-[0.2em]">Nenhum estudo encontrado</p>
+               <button onClick={() => onCreate('Estudo Exemplo', '2024.0001', 'BT-RJ-01', -22.9, -43.1)} className="mt-6 text-xs font-black text-blue-600 underline">Carregar Demo</button>
+            </div>
+          ) : (
+            projectList.map((prj) => (
+              <div key={prj.id} onClick={() => onSelect(prj.id)} className="glass-dark p-8 rounded-[40px] group cursor-pointer hover:scale-[1.02] hover:shadow-2xl transition-all duration-500 relative border-white/60">
+                <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                   <button onClick={(e) => { e.stopPropagation(); onDuplicate(prj.id); }} className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-sm shadow-xl">👯</button>
+                   <button onClick={(e) => { e.stopPropagation(); if(confirm('Excluir?')) onDelete(prj.id); }} className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center text-sm text-red-500 shadow-xl">✕</button>
+                </div>
+                <div className="flex flex-col h-full">
+                   <span className="text-[9px] font-black text-blue-500 bg-blue-50 px-3 py-1 rounded-full w-fit uppercase tracking-widest mb-6">SOB {prj.metadata.sob}</span>
+                   <h3 className="text-lg font-black text-gray-800 leading-tight mb-2 group-hover:text-blue-600 transition-colors uppercase tracking-tight">{prj.name}</h3>
+                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-10">{prj.metadata.city || 'Local não definido'}</p>
+                   <div className="mt-auto flex justify-between items-center pt-6 border-t border-gray-50">
+                      <span className="text-[9px] font-bold text-gray-300 uppercase">{new Date(prj.updatedAt).toLocaleDateString()}</span>
+                      <span className="text-[10px] font-black text-blue-600 uppercase tracking-tighter translate-x-2 group-hover:translate-x-0 transition-transform">Abrir Estudo ➔</span>
+                   </div>
                 </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full z-10 p-4">
-                {projectList.map((prj) => (
-                  <div key={prj.id} onClick={() => onSelect(prj.id)} className={`glass group p-6 rounded-[28px] border hover:shadow-xl transition-all cursor-pointer flex flex-col relative ${prj.id.includes('SAMPLE') ? 'border-orange-200 bg-orange-50/10' : 'border-blue-50'}`}>
-                    <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={(e) => { e.stopPropagation(); onDuplicate(prj.id); }} className="p-2 bg-white rounded-lg text-blue-500 hover:bg-blue-500 hover:text-white transition-all shadow-sm" title="Duplicar">👯</button>
-                      <button onClick={(e) => openEditModal(e, prj)} className="p-2 bg-white rounded-lg text-indigo-500 hover:bg-indigo-500 hover:text-white transition-all shadow-sm" title="Editar Informações">✏️</button>
-                      <button onClick={(e) => { e.stopPropagation(); if(confirm('Excluir projeto?')) onDelete(prj.id); }} className="p-2 bg-white rounded-lg text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm" title="Excluir">✕</button>
-                    </div>
-                    
-                    <div className="flex justify-between items-start mb-4">
-                      <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter ${prj.id.includes('SAMPLE') ? 'bg-orange-500 text-white' : 'bg-blue-50 text-blue-600'}`}>
-                        {prj.id.includes('SAMPLE') ? 'DEMO ENGENHARIA' : `SOB ${prj.metadata.sob}`}
-                      </span>
-                      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{prj.metadata.electricPoint}</span>
-                    </div>
-                    <h4 className="text-sm font-black text-gray-800 leading-tight mb-2 truncate">{prj.name}</h4>
-                    <p className="text-[9px] text-gray-400 font-bold mb-6">{prj.metadata.city}</p>
-                    <div className="mt-auto flex justify-between items-center pt-4 border-t border-blue-50">
-                      <span className="text-[8px] font-bold text-gray-300">{new Date(prj.updatedAt).toLocaleDateString()}</span>
-                      <span className="text-blue-600 font-black text-[10px] group-hover:translate-x-1 transition-transform uppercase">ABRIR ➔</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+            ))
+          )}
         </main>
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-blue-900/10 backdrop-blur-md" onClick={() => setIsModalOpen(false)}></div>
-          <div className="glass-dark w-full max-w-lg rounded-[40px] p-10 shadow-2xl border border-white/80 relative animate-in zoom-in-95">
-            <h2 className="text-2xl font-black text-[#004a80] mb-8 uppercase tracking-tighter">
-              {editingProjectId ? 'Editar Estudo de Rede' : 'NOVO ESTUDO DE REDE'}
-            </h2>
-            <div className="flex flex-col gap-5">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 backdrop-blur-md bg-white/10">
+          <div className="glass-dark w-full max-w-lg rounded-[48px] p-12 shadow-2xl border-white relative animate-in zoom-in-95 duration-500">
+            <h2 className="text-2xl font-black text-[#004a80] mb-10 uppercase tracking-tighter">Configurar Novo Estudo</h2>
+            <div className="flex flex-col gap-6">
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">SOB*</label>
-                  <div className="relative">
-                    <input 
-                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-lg outline-none focus:border-blue-400 transition-all font-black text-blue-500" 
-                      value={formProject.sob} 
-                      onChange={e => setFormProject({...formProject, sob: e.target.value})} 
-                    />
-                    {!formProject.sob && <span className="absolute left-4 top-3 text-gray-300 pointer-events-none text-sm font-bold">Ex: 2024.0001</span>}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">PONTO ELÉTRICO*</label>
-                  <div className="relative">
-                    <input 
-                      className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-lg outline-none focus:border-blue-400 transition-all font-black text-blue-500" 
-                      value={formProject.pe} 
-                      onChange={e => setFormProject({...formProject, pe: e.target.value})} 
-                    />
-                    {!formProject.pe && <span className="absolute left-4 top-3 text-gray-300 pointer-events-none text-sm font-bold">BT-RJ-01</span>}
-                  </div>
-                </div>
+                 <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">SOB / ID</label>
+                    <input className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.sob} onChange={e => setFormProject({...formProject, sob: e.target.value})} />
+                 </div>
+                 <div className="flex flex-col gap-2">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ponto Elétrico</label>
+                    <input className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.pe} onChange={e => setFormProject({...formProject, pe: e.target.value})} />
+                 </div>
               </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">NOME DO PROJETO*</label>
-                <div className="relative">
-                  <input 
-                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-lg outline-none focus:border-blue-400 transition-all font-black text-blue-500" 
-                    value={formProject.name} 
-                    onChange={e => setFormProject({...formProject, name: e.target.value})} 
-                  />
-                  {!formProject.name && <span className="absolute left-4 top-3 text-gray-300 pointer-events-none text-sm font-bold">Ex: Reforço de Ramal - Barra</span>}
-                </div>
+              <div className="flex flex-col gap-2">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Título do Estudo</label>
+                 <input className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.name} onChange={e => setFormProject({...formProject, name: e.target.value})} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">LATITUDE</label>
-                  <input type="text" className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none font-bold text-gray-700" value={formProject.lat} onChange={e => setFormProject({...formProject, lat: e.target.value})} />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">LONGITUDE</label>
-                  <input type="text" className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none font-bold text-gray-700" value={formProject.lng} onChange={e => setFormProject({...formProject, lng: e.target.value})} />
-                </div>
-              </div>
-              <button onClick={handleFormSubmit} className="mt-4 bg-[#004a80] text-white py-5 rounded-2xl font-black shadow-xl hover:scale-[1.02] active:scale-95 transition-all uppercase tracking-[0.2em] text-sm">
-                {editingProjectId ? 'Salvar Alterações' : 'INICIAR PROJETO'}
-              </button>
+              <button onClick={handleFormSubmit} className="mt-6 bg-blue-600 text-white py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all">Inicializar Workspace ➔</button>
+              <button onClick={() => setIsModalOpen(false)} className="text-[10px] font-black text-gray-300 hover:text-gray-500 transition-colors uppercase tracking-widest">Cancelar</button>
             </div>
           </div>
         </div>
       )}
+      
+      <input type="file" ref={fileInputRef} className="hidden" accept=".kml,.kmz" onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          setIsImporting(true);
+          try {
+            const data = await KmlService.parseFile(file);
+            onCreate(file.name, 'KML.' + Math.floor(Math.random()*1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
+            showToast("Importação KML concluída!", "success");
+          } catch(err) { showToast("Falha no KML", "error"); }
+          finally { setIsImporting(false); }
+        }
+      }} />
     </div>
   );
 };

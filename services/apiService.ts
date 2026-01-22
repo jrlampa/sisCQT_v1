@@ -1,4 +1,3 @@
-
 import { Project, EngineResult, User, NetworkNode } from '../types.ts';
 import { GeminiService } from './geminiService.ts';
 
@@ -19,7 +18,6 @@ export class ApiService {
       const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
       
       if (response.status === 401) {
-        // Se estivermos no hub ou dashboard e der 401, limpa e desloga
         if (!window.location.pathname.includes('/login')) {
             localStorage.removeItem(TOKEN_KEY);
             window.location.href = '/login';
@@ -40,8 +38,6 @@ export class ApiService {
   }
 
   static async syncUser(accessToken: string): Promise<User> {
-    // Primeiro salvamos o token para que a requisição de sync já o envie no header se necessário,
-    // ou o backend pode receber via body no post de sync.
     localStorage.setItem(TOKEN_KEY, accessToken);
     const res = await this.request<{user: User}>('/auth/sync', {
       method: 'POST',
@@ -81,7 +77,6 @@ export class ApiService {
     });
   }
 
-  // Added optimizeScenario method to fix TypeScript error in useProjectManagement hook
   static async optimizeScenario(payload: any): Promise<NetworkNode[]> {
     return this.request<NetworkNode[]>('/optimize', {
       method: 'POST',

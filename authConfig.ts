@@ -1,5 +1,6 @@
-
 import { Configuration, LogLevel } from "@azure/msal-browser";
+
+const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
 
 export const msalConfig: Configuration = {
     auth: {
@@ -9,13 +10,11 @@ export const msalConfig: Configuration = {
         // URL da Organização (IM3 Brasil) - Locatário específico
         authority: "https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31",
         
-        // Onde o usuário 'cai' após logar. 
-        // Em desenvolvimento local: http://localhost:5173
-        redirectUri: window.location.origin, 
+        // Redirecionamento dinâmico: local ou produção
+        redirectUri: isLocalhost ? 'http://localhost:5173' : window.location.origin, 
     },
-    // Cast cache to any to handle storeAuthStateInCookie which may not be in standard CacheOptions type in all versions
     cache: {
-        cacheLocation: "sessionStorage", // 'sessionStorage' é mais seguro que localStorage para dados de sessão
+        cacheLocation: "sessionStorage",
         storeAuthStateInCookie: false,
     } as any,
     system: {
@@ -27,10 +26,8 @@ export const msalConfig: Configuration = {
                         console.error("[MSAL Error]", message);
                         return;
                     case LogLevel.Info:
-                        // console.info(message); // Descomente para debugar login
                         return;
                     case LogLevel.Verbose:
-                        console.debug("[MSAL Verbose]", message);
                         return;
                     case LogLevel.Warning:
                         console.warn("[MSAL Warning]", message);

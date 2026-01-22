@@ -1,6 +1,6 @@
 {
-  "name": "sisCQT Enterprise AI - Novas implementações",
-  "description": "Plataforma avançada de engenharia elétrica para cálculo de redes de baixa tensão (BT), dimensionamento de transformadores e análise de queda de tensão, integrada com inteligência artificial para diagnósticos e visão computacional.",
+  "name": "sisCQT Enterprise AI - Deployment Ready",
+  "description": "Plataforma avançada de engenharia elétrica para cálculo de redes BT, com suporte nativo a Docker e Cloud Run.",
   "requestFramePermissions": [
     "camera"
   ]

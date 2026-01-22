@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>sisCQT Enterprise AI</title>
-    <!-- Tailwind CDN para prototipagem rápida (em prod real usaríamos o CLI) -->
+    <title>siSCQT Enterprise AI | IM3 Brasil</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -12,64 +11,76 @@
     <style>
         :root {
             --glass-bg: rgba(255, 255, 255, 0.45);
-            --glass-border: rgba(255, 255, 255, 0.6);
-            --glass-shadow: rgba(0, 74, 128, 0.08);
-            --accent-blue: #004a80;
+            --glass-border: rgba(255, 255, 255, 0.7);
+            --glass-shadow: rgba(31, 38, 135, 0.07);
+            --accent-blue: #2563eb;
         }
         body {
             font-family: 'Inter', sans-serif;
-            background: radial-gradient(circle at 0% 0%, #fdfdff 0%, #eef2ff 50%, #f8faff 100%);
+            background: radial-gradient(circle at top left, #f8faff 0%, #e0e7ff 100%);
             min-height: 100vh;
             margin: 0;
             color: #1e293b;
-            -webkit-font-smoothing: antialiased;
+            overflow: hidden;
         }
         .glass {
             background: var(--glass-bg);
-            backdrop-filter: blur(16px) saturate(180%);
+            backdrop-filter: blur(12px) saturate(180%);
+            -webkit-backdrop-filter: blur(12px) saturate(180%);
             border: 1px solid var(--glass-border);
-            box-shadow: 0 8px 32px var(--glass-shadow);
+            box-shadow: 0 8px 32px 0 var(--glass-shadow);
         }
         .glass-dark {
-            background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(24px) saturate(200%);
-            border: 1px solid rgba(255, 255, 255, 0.8);
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.03);
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(20px) saturate(160%);
+            -webkit-backdrop-filter: blur(20px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.04);
         }
-        .leaflet-container { border-radius: 32px; z-index: 1; }
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 74, 128, 0.15); border-radius: 20px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.05); border-radius: 10px; }
+        
+        /* Animação suave para entrada de elementos */
+        .fade-in-blur {
+            animation: fadeInBlur 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        @keyframes fadeInBlur {
+            from { opacity: 0; filter: blur(10px); transform: translateY(10px); }
+            to { opacity: 1; filter: blur(0); transform: translateY(0); }
+        }
     </style>
-<script type="importmap">
+    <!-- Previne erro de 'process is not defined' -->
+    <script>
+        window.process = { env: { NODE_ENV: 'production' } };
+    </script>
+    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
-    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?external=react,react-dom",
-    "@google/genai": "https://esm.sh/@google/genai@1.37.0",
-    "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
+    "react-router-dom": "https://esm.sh/react-router-dom@6.22.3",
+    "@google/genai": "https://esm.sh/@google/genai@1.3.0",
+    "recharts": "https://esm.sh/recharts@2.15.0",
     "leaflet": "https://esm.sh/leaflet@1.9.4",
-    "react-leaflet": "https://esm.sh/react-leaflet@4.2.1?external=react,react-dom,leaflet",
+    "react-leaflet": "https://esm.sh/react-leaflet@4.2.1",
     "jszip": "https://esm.sh/jszip@3.10.1",
     "@azure/msal-browser": "https://esm.sh/@azure/msal-browser@3.28.0",
-    "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.3.0?external=react,react-dom,@azure/msal-browser",
-    "jsonwebtoken": "https://esm.sh/jsonwebtoken@9.0.2",
-    "@prisma/client": "https://esm.sh/@prisma/client@5.10.2",
-    "express": "https://esm.sh/express-browserify@1.0.0",
-    "path": "https://esm.sh/path-browserify@1.0.1",
-    "url": "https://esm.sh/url@0.11.4",
+    "@azure/msal-react": "https://esm.sh/@azure/msal-react@2.3.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/"
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "express": "https://esm.sh/express@^5.2.1",
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4",
+    "jsonwebtoken": "https://esm.sh/jsonwebtoken@^9.0.3"
   }
 }
 </script>
 </head>
 <body>
     <div id="root"></div>
-    <!-- No ambiente de deploy, usamos o transpilador automático do sistema se disponível, 
-         ou garantimos que o mapeamento de tipos seja aceito pelo navegador. -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>
