@@ -8,6 +8,12 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
   const { showToast } = useToast();
   const { savedProjects, createProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [formProject, setFormProject] = useState({ name: '', sob: '', pe: '', lat: '-22.90', lng: '-43.17' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const projectList = (Object.values(savedProjects) as Project[]).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );

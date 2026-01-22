@@ -44,8 +44,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       // Execute the login popup flow
       const loginResponse = await instance.loginPopup(loginRequest);
       
-      // Send the access token to the backend for verification and profile synchronization
-      const user = await ApiService.syncUser(loginResponse.accessToken);
+      // Send the ID token to the backend for verification and profile synchronization
+      const user = await ApiService.syncUser(loginResponse.idToken);
       
       onLogin(user);
       showToast(`Bem-vindo, ${user.name}!`, "success");

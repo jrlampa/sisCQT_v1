@@ -13,10 +13,12 @@ services:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=password123
       - POSTGRES_DB=siscqt_db
+      - ENABLE_MOCK_AUTH=true  # <--- ADICIONA ESTA LINHA PARA ATIVAR AUTENTICAÇÃO MOCK
       # A sua chave da API da Gemini deve ser colocada num ficheiro .env
       # Exemplo de .env:
       # GEMINI_API_KEY=AIzaSy...
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NODE_OPTIONS=--dns-result-order=ipv4first
     volumes:
       - .:/app # Sincroniza a tua pasta local com o Docker (Hot Reload)
       - /app/node_modules # Evita apagar os módulos dentro do Docker

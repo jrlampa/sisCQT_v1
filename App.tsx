@@ -20,6 +20,7 @@ import { useToast } from './context/ToastContext.tsx';
 
 import { ApiService } from './services/apiService.ts';
 import { ProjectProvider, useProject } from './context/ProjectContext';
+import { useMsal } from "@azure/msal-react";
 
 const ProjectRouteWrapper = ({ user, onLogout }: { user: User, onLogout: () => void }) => {
   const { projectId } = useParams();
@@ -63,6 +64,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
+  const { instance } = useMsal(); // Get the MSAL instance
 
 
   // Verifica autenticação no mount
@@ -98,8 +100,14 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await ApiService.logout();
-    } finally {
+      await ApiService.logout(); // Clear local storage
+      // Perform MSAL logout redirect
+      await instance.logoutRedirect({
+        postLogoutRedirectUri: "/", // This will redirect to the root after AAD logout
+      });
+    } catch (error) {
+      console.error("Error during MSAL logout:", error);
+      // Even if MSAL logout fails, clear local state and navigate
       setCurrentUser(null);
       navigate('/login');
     }
