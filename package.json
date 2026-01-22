@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node --loader tsx server.ts",
-    "build": "npx prisma generate",
+    "dev": "concurrently \"npx vite\" \"node --loader tsx server.ts\"",
+    "build": "npx prisma generate && npx vite build",
     "db:push": "npx prisma db push"
   },
   "dependencies": {
@@ -29,6 +30,9 @@
     "prisma": "^5.10.2",
     "typescript": "^5.3.3",
     "@types/node": "^20.11.24",
-    "@types/express": "^4.17.21"
+    "@types/express": "^4.17.21",
+    "vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2"
   }
 }
