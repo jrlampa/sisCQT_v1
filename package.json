@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node --import tsx server.ts",
-    "dev": "concurrently \"npx vite\" \"node --import tsx server.ts\"",
+    "dev": "concurrently \"npx vite\" \"npx prisma generate && npx tsx watch server.ts\"",
     "build": "npx prisma generate && npx vite build",
     "db:push": "npx prisma db push"
   },

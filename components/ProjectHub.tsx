@@ -8,9 +8,46 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
   const { showToast } = useToast();
   const { savedProjects, createProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [formProject, setFormProject] = useState({
+    name: '',
+    sob: '',
+    pe: '',
+    lat: '',
+    lng: ''
+  });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+
   const projectList = (Object.values(savedProjects) as Project[]).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
+
+  const handleCreateProject = (name: string, sob: string, pe: string, lat: number, lng: number) => {
+    createProject(name, sob, pe, lat, lng);
+    showToast(`Projeto "${name}" criado!`, 'success');
+  };
+
+  const handleSelectProject = (projectId: string) => {
+    setCurrentProjectId(projectId);
+    // A navegação será tratada pelo efeito no App.tsx
+  };
+
+  const handleDeleteProject = (projectId: string) => {
+    if (window.confirm("Tem certeza que deseja apagar este projeto?")) {
+      deleteProject(projectId);
+      showToast("Projeto apagado.", "info");
+    }
+  };
+
+  const handleDuplicateProject = (projectId: string) => {
+    duplicateProject(projectId);
+    showToast("Projeto duplicado com sucesso!", "success");
+  };
+
+
 
   const handleFormSubmit = () => {
     const { name, sob, pe, lat, lng } = formProject;

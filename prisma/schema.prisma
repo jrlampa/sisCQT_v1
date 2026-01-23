@@ -1,8 +1,7 @@
 // prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client-js"
-  // Isto é importante para funcionar no Docker (Alpine Linux)
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
@@ -11,17 +10,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Modelos básicos para o comando "generate" funcionar
-// (Podes ajustar isto mais tarde conforme a necessidade real do projeto)
 model User {
-  id    String @id @default(uuid())
-  email String @unique
-  name  String?
+  id       String    @id @default(uuid())
+  email    String    @unique
+  name     String?
+  projects Project[]
 }
 
 model Project {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  name             String
+  metadata         Json
+  activeScenarioId String
+  cables           Json
+  ipTypes          Json
+  reportConfig     Json
+  scenarios        Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id])
+  userId           String
 }

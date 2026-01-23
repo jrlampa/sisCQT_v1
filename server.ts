@@ -55,6 +55,49 @@ app.get('/api/projects', authMiddleware as any, async (req, res) => {
   }
 });
 
+app.post('/api/projects', authMiddleware as any, async (req, res) => {
+  try {
+    const user = (req as any).user;
+    const project = await prisma.project.create({
+      data: {
+        ...req.body,
+        userId: user.id,
+      },
+    });
+    res.status(201).json(project);
+  } catch (e) {
+    console.error("Failed to create project:", e);
+    res.status(500).json({ error: 'Erro ao criar projeto.' });
+  }
+});
+
+app.put('/api/projects/:id', authMiddleware as any, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const project = await prisma.project.update({
+      where: { id },
+      data: req.body,
+    });
+    res.json(project);
+  } catch (e) {
+    console.error("Failed to update project:", e);
+    res.status(500).json({ error: 'Erro ao atualizar projeto.' });
+  }
+});
+
+app.delete('/api/projects/:id', authMiddleware as any, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await prisma.project.delete({
+      where: { id },
+    });
+    res.status(204).send();
+  } catch (e) {
+    console.error("Failed to delete project:", e);
+    res.status(500).json({ error: 'Erro ao apagar projeto.' });
+  }
+});
+
 app.post('/api/calculate', authMiddleware as any, (req, res) => {
   const { scenarioId, nodes, params, cables, ips } = req.body;
   try {

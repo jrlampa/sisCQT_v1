@@ -17,6 +17,7 @@ services:
       # Exemplo de .env:
       # GEMINI_API_KEY=AIzaSy...
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - ENABLE_MOCK_AUTH=true
     volumes:
       - .:/app # Sincroniza a tua pasta local com o Docker (Hot Reload)
       - /app/node_modules # Evita apagar os módulos dentro do Docker

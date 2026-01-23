@@ -28,6 +28,10 @@ export class ApiService {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Erro API: ${response.status}`);
       }
+
+      if (response.status === 204) {
+        return Promise.resolve({} as T);
+      }
       
       return response.json();
     } catch (error) {
