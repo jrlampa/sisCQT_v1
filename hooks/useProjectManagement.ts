@@ -42,11 +42,11 @@ export function useProjectManagement() {
   // - throttle simples para evitar spam de /api/projects
   const reloadGuardRef = useRef<{ inFlight: boolean; lastStartAt: number }>({ inFlight: false, lastStartAt: 0 });
 
-  const reloadFromBackend = useCallback(async () => {
+  const reloadFromBackend = useCallback(async (opts?: { force?: boolean }) => {
     const now = Date.now();
     // evita rajadas (ex.: múltiplos renders/efeitos em DEV)
     if (reloadGuardRef.current.inFlight) return;
-    if (now - reloadGuardRef.current.lastStartAt < 750) return;
+    if (!opts?.force && now - reloadGuardRef.current.lastStartAt < 750) return;
 
     reloadGuardRef.current.inFlight = true;
     reloadGuardRef.current.lastStartAt = now;
@@ -82,7 +82,8 @@ export function useProjectManagement() {
     reloadFromBackend();
     const handler = () => {
       if (!mounted) return;
-      reloadFromBackend();
+      // Mudança de auth é um evento importante (não deve ser throttled).
+      reloadFromBackend({ force: true });
     };
     window.addEventListener('sisqat_auth_changed', handler);
     return () => {

@@ -14,6 +14,14 @@ test('Snapshots principais (login/hub/editor/chatbot)', async ({ page }, testInf
 
   await page.goto('/login');
   await expect(page.getByText('Engenharia Digital')).toBeVisible();
+  // Aguarda imagens dos logos para evitar flakiness (render async).
+  await expect(page.getByRole('img', { name: 'siSCQT' })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Logo IM3 Brasil' })).toBeVisible();
+  await page.waitForFunction(() => {
+    const imgs = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
+    const targets = imgs.filter((i) => (i.alt || '') === 'siSCQT' || (i.alt || '') === 'Logo IM3 Brasil');
+    return targets.length >= 2 && targets.every((i) => i.complete && i.naturalWidth > 0);
+  });
   await expect(page).toHaveScreenshot('login.png', { fullPage: true, maxDiffPixelRatio: 0.02 });
 
   await loginAsDev(page);
