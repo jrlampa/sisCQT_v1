@@ -5,10 +5,10 @@ const isLocalhost = window.location.hostname === "localhost" || window.location.
 export const msalConfig: Configuration = {
     auth: {
         // ID do Aplicativo sisCQT Enterprise (Registrado na IM3 Brasil)
-        clientId: "df5b2c78-c26b-47ae-aa8c-86dab74752fb",
+        clientId: import.meta.env.VITE_MSAL_CLIENT_ID || "df5b2c78-c26b-47ae-aa8c-86dab74752fb",
         
         // URL da Organização (IM3 Brasil) - Locatário específico
-        authority: "https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31",
+        authority: import.meta.env.VITE_MSAL_AUTHORITY || "https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31",
         
         // Redirecionamento dinâmico: local ou produção
         redirectUri: isLocalhost ? 'http://localhost:3000' : window.location.origin, 

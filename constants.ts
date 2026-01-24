@@ -1,3 +1,4 @@
+// todo tranformar em database externa // 
 
 export const DEFAULT_CABLES = {
   "2#16(25)mm² Al": { r: 1.91, x: 0.10, coef: 0.7779, ampacity: 85 },
