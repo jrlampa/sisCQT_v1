@@ -35,7 +35,10 @@ export async function loginAsDev(page: Page) {
 
 export async function openDemoProject(page: Page) {
   // Clica no card do projeto demo (tem texto "Projeto Demo")
-  await page.getByText('Projeto Demo', { exact: true }).click();
+  const card = page.getByText('Projeto Demo', { exact: true });
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await card.scrollIntoViewIfNeeded();
+  await card.click();
   await expect(page).toHaveURL(/\/project\/prj-1\/dashboard/);
 }
 

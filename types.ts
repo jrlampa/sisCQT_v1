@@ -97,6 +97,9 @@ export interface ProjectParams {
   manualClass: 'A' | 'B' | 'C' | 'D';
   normativeTable: string;
   includeGdInQt?: boolean; // Se true, subtrai GD da carga no pico de CQT
+  // Sustentabilidade: custo de energia para monetizar perdas (R$/kWh).
+  // Se omitido, o motor usa o default do backend.
+  energyPriceBrlKwh?: number;
 }
 
 export interface Scenario {

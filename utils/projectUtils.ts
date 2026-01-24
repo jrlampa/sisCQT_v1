@@ -17,7 +17,7 @@ export const createTemplateProject = (
   pe: string,
   lat: number,
   lng: number,
-  defaults: { cables: Project['cables']; ipTypes: Project['ipTypes'] }
+  defaults: { cables: Project['cables']; ipTypes: Project['ipTypes']; energyPriceBrlKwh?: number }
 ): Project => {
   const cables = defaults?.cables || {};
   const ipTypes = defaults?.ipTypes || {};
@@ -60,7 +60,8 @@ export const createTemplateProject = (
         classType: 'Automatic', 
         manualClass: 'B', 
         normativeTable: 'PRODIST', 
-        includeGdInQt: false 
+        includeGdInQt: false,
+        energyPriceBrlKwh: defaults?.energyPriceBrlKwh
       },
       nodes: [
         { 
@@ -76,7 +77,7 @@ export const createTemplateProject = (
 });
 };
 
-export const createSampleProject = (defaults: { cables: Project['cables']; ipTypes: Project['ipTypes'] }): Project => {
+export const createSampleProject = (defaults: { cables: Project['cables']; ipTypes: Project['ipTypes']; energyPriceBrlKwh?: number }): Project => {
   const base = createTemplateProject('Estudo de Caso: Expansão Barra', '2024.EX01', 'BT-BARRA-09', -23.0003, -43.3658, defaults);
   base.id = 'PRJ-SAMPLE-001';
   base.scenarios[0].nodes = [
@@ -91,7 +92,7 @@ export const createSampleProject = (defaults: { cables: Project['cables']; ipTyp
  * Projeto modelo “WELCOME” para novos usuários: exercita Editor, Comparativos, GD Solar, IP, cargas pontuais,
  * e fornece cenários (ATUAL vs OTIMIZADO) prontos para comparar.
  */
-export const createWelcomeProject = (defaults: { cables: Project['cables']; ipTypes: Project['ipTypes'] }): Project => {
+export const createWelcomeProject = (defaults: { cables: Project['cables']; ipTypes: Project['ipTypes']; energyPriceBrlKwh?: number }): Project => {
   const cables = defaults?.cables || {};
   const ipTypes = defaults?.ipTypes || {};
 
@@ -113,6 +114,7 @@ export const createWelcomeProject = (defaults: { cables: Project['cables']; ipTy
       manualClass: 'B',
       normativeTable: 'PRODIST',
       includeGdInQt: false,
+      energyPriceBrlKwh: defaults?.energyPriceBrlKwh,
     },
     nodes: [
       { id: 'TRAFO', parentId: '', meters: 0, cable: cableB, loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 }, lat: -22.9068, lng: -43.1729 },

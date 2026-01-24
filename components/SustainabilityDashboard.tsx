@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   BarChart, 
   Bar, 
@@ -14,13 +14,51 @@ import {
 } from 'recharts';
 import { useProject } from '../context/ProjectContext';
 
-const SustainabilityDashboard: React.FC = () => {
-  const { project, activeResult: result } = useProject();
+const ENERGY_PRICE_STORAGE_KEY = 'sisqat_energy_price_brl_kwh';
+const DEFAULT_ENERGY_PRICE_BRL_KWH = 0.85;
 
-  if (!project || !result) {
+const SustainabilityDashboard: React.FC = () => {
+  const { project, activeScenario, activeResult: result, updateActiveScenario } = useProject();
+
+  if (!project || !result || !activeScenario) {
     return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Dashboard de Sustentabilidade...</div>;
   }
   const { sustainability } = result;
+
+  const defaultFromSettings = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(ENERGY_PRICE_STORAGE_KEY);
+      if (!raw) return DEFAULT_ENERGY_PRICE_BRL_KWH;
+      const n = Number(String(raw).replace(',', '.'));
+      if (!Number.isFinite(n) || n <= 0) return DEFAULT_ENERGY_PRICE_BRL_KWH;
+      return n;
+    } catch {
+      return DEFAULT_ENERGY_PRICE_BRL_KWH;
+    }
+  }, []);
+
+  const effectiveEnergyPrice = useMemo(() => {
+    const n = (activeScenario.params as any)?.energyPriceBrlKwh;
+    if (typeof n === 'number' && Number.isFinite(n) && n > 0) return n;
+    return defaultFromSettings;
+  }, [activeScenario.params, defaultFromSettings]);
+
+  const [localEnergyPrice, setLocalEnergyPrice] = useState<string>(String(effectiveEnergyPrice).replace('.', ','));
+
+  useEffect(() => {
+    setLocalEnergyPrice(String(effectiveEnergyPrice).replace('.', ','));
+  }, [effectiveEnergyPrice]);
+
+  const commitEnergyPrice = () => {
+    const v = Number(String(localEnergyPrice).replace(',', '.'));
+    if (!Number.isFinite(v) || v <= 0) return;
+    updateActiveScenario({
+      params: {
+        ...activeScenario.params,
+        energyPriceBrlKwh: v,
+      } as any,
+    });
+  };
 
   const nodeLossData = result.nodes
     .filter(n => n.id !== 'TRAFO' && (n.jouleLossWatts || 0) > 1)
@@ -80,8 +118,23 @@ const SustainabilityDashboard: React.FC = () => {
           </div>
         </div>
         <div className="bg-white/60 px-6 py-3 rounded-2xl border border-green-100">
-           <span className="text-[9px] font-black text-green-600 uppercase tracking-widest block mb-1">Custo Médio Energia</span>
-           <span className="text-sm font-black text-gray-700">R$ 0,85 / kWh</span>
+          <span className="text-[9px] font-black text-green-600 uppercase tracking-widest block mb-1">Custo de Energia (R$/kWh)</span>
+          <div className="flex items-center gap-3">
+            <input
+              aria-label="Custo de energia (R$/kWh)"
+              className="w-28 bg-white border border-green-100 rounded-xl px-3 py-2 text-sm font-black text-gray-700 outline-none focus:border-green-300"
+              value={localEnergyPrice}
+              onChange={(e) => setLocalEnergyPrice(e.target.value)}
+              onBlur={commitEnergyPrice}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              inputMode="decimal"
+            />
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">ex.: RJ 1,10</span>
+          </div>
         </div>
       </header>
 

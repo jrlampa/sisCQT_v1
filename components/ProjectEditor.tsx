@@ -107,13 +107,13 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         )}
       </td>
 
-      <td className="px-6 py-4">
+      <td className="px-6 py-4 min-w-[240px]">
         {!isTrafo && (
           <select
             data-row={rowIndex} data-col={1}
             aria-label="ID do pai"
-            title="ID do pai (obrigatório)"
-            className="w-full bg-white/60 border border-gray-100 px-3 py-2 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-400"
+            title={`Pai atual: ${node.parentId || '—'} (obrigatório)`}
+            className="w-full bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-black uppercase text-gray-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             value={availableParentIds.includes(node.parentId) ? node.parentId : 'TRAFO'}
             onChange={e => onUpdateField(node.id, 'parentId', e.target.value.toUpperCase())}
             onKeyDown={e => handleKeyDown(e, 1)}
@@ -243,14 +243,14 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         </div>
       </td>
 
-      <td className="px-6 py-4 text-center">
+      <td className="px-6 py-4 text-center sticky right-[72px] z-10 bg-white/60 backdrop-blur-sm min-w-[120px] group-hover:bg-blue-50/60">
         <div className={`inline-flex px-3 py-1 rounded-full font-black text-[10px] shadow-sm 
           ${isOverloaded ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-50 text-blue-700'}`}>
           {(resNode?.calculatedLoad || 0).toFixed(1)}A
         </div>
       </td>
 
-      <td className="px-6 py-4 text-center">
+      <td className="px-6 py-4 text-center sticky right-[192px] z-10 bg-white/60 backdrop-blur-sm min-w-[130px] group-hover:bg-blue-50/60">
         <div className={`inline-flex flex-col px-3 py-1 rounded-full font-black text-[10px]
           ${isHighVoltageRise ? 'bg-orange-600 text-white' : 
             isCriticalCqt ? 'bg-orange-500 text-white shadow-lg shadow-orange-100' : 'bg-green-50 text-green-700'}`}>
@@ -258,7 +258,7 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         </div>
       </td>
 
-      <td className="px-4 py-4 text-right">
+      <td className="px-4 py-4 text-right sticky right-0 z-20 bg-white/60 backdrop-blur-sm w-[72px] group-hover:bg-blue-50/60">
         {!isTrafo && (
           <button onClick={() => onRemove(node.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2 text-lg">✕</button>
         )}
@@ -424,9 +424,10 @@ const ProjectEditor: React.FC = () => {
                 <th className="px-4 py-6 text-center bg-orange-50/20">GD Solar</th>
                 <th className="px-4 py-6 text-center bg-indigo-50/20">Pontuais</th>
                 <th className="px-4 py-6 text-center">Ilum. Pública</th>
-                <th className="px-6 py-6 text-center">Corrente</th>
-                <th className="px-6 py-6 text-center">CQT / ΔV</th>
-                <th className="px-4 py-6"></th>
+                {/* Mantém métricas elétricas sempre visíveis (sticky à direita) */}
+                <th className="px-6 py-6 text-center sticky right-[72px] z-20 bg-white/50 backdrop-blur min-w-[120px]">Corrente</th>
+                <th className="px-6 py-6 text-center sticky right-[192px] z-20 bg-white/50 backdrop-blur min-w-[130px]">CQT / ΔV</th>
+                <th className="px-4 py-6 sticky right-0 z-30 bg-white/50 backdrop-blur w-[72px]"></th>
               </tr>
             </thead>
             <tbody>

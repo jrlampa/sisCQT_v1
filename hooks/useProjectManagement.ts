@@ -5,6 +5,9 @@ import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
 import { createTemplateProject, createWelcomeProject, generateId } from '../utils/projectUtils';
 
+const ENERGY_PRICE_STORAGE_KEY = 'sisqat_energy_price_brl_kwh';
+const DEFAULT_ENERGY_PRICE_BRL_KWH = 0.85;
+
 export function useProjectManagement() {
   const { showToast } = useToast();
   const [savedProjects, setSavedProjects] = useState<Record<string, Project>>({});
@@ -22,16 +25,28 @@ export function useProjectManagement() {
     profiles: Record<string, any>;
   } | null>(null);
 
+  const getDefaultEnergyPrice = useCallback((): number | undefined => {
+    try {
+      const raw = localStorage.getItem(ENERGY_PRICE_STORAGE_KEY);
+      if (!raw) return undefined;
+      const n = Number(String(raw).replace(',', '.'));
+      if (!Number.isFinite(n) || n <= 0) return undefined;
+      return n;
+    } catch {
+      return undefined;
+    }
+  }, []);
+
   // Proteções contra loops em DEV (StrictMode / refresh storms):
   // - dedup de chamadas simultâneas
   // - throttle simples para evitar spam de /api/projects
   const reloadGuardRef = useRef<{ inFlight: boolean; lastStartAt: number }>({ inFlight: false, lastStartAt: 0 });
 
-  const reloadFromBackend = useCallback(async () => {
+  const reloadFromBackend = useCallback(async (opts?: { force?: boolean }) => {
     const now = Date.now();
     // evita rajadas (ex.: múltiplos renders/efeitos em DEV)
     if (reloadGuardRef.current.inFlight) return;
-    if (now - reloadGuardRef.current.lastStartAt < 750) return;
+    if (!opts?.force && now - reloadGuardRef.current.lastStartAt < 750) return;
 
     reloadGuardRef.current.inFlight = true;
     reloadGuardRef.current.lastStartAt = now;
@@ -67,7 +82,8 @@ export function useProjectManagement() {
     reloadFromBackend();
     const handler = () => {
       if (!mounted) return;
-      reloadFromBackend();
+      // Mudança de auth é um evento importante (não deve ser throttled).
+      reloadFromBackend({ force: true });
     };
     window.addEventListener('sisqat_auth_changed', handler);
     return () => {
@@ -163,7 +179,11 @@ export function useProjectManagement() {
     setCurrentProjectId,
     createProject: async (name: string, sob: string, pe: string, lat: number, lng: number) => {
       const c = serverConstants ?? (await ApiService.getConstants());
-      const n = createTemplateProject(name, sob, pe, lat, lng, { cables: c.cables, ipTypes: c.ipTypes });
+      const n = createTemplateProject(name, sob, pe, lat, lng, {
+        cables: c.cables,
+        ipTypes: c.ipTypes,
+        energyPriceBrlKwh: getDefaultEnergyPrice() ?? DEFAULT_ENERGY_PRICE_BRL_KWH,
+      });
       setSavedProjects(p => ({ ...p, [n.id]: n }));
       ApiService.createProject(n); // Use POST for creation
       return n.id;
@@ -176,7 +196,11 @@ export function useProjectManagement() {
     },
     createWelcomeProject: async () => {
       const c = serverConstants ?? (await ApiService.getConstants());
-      const prj = createWelcomeProject({ cables: c.cables, ipTypes: c.ipTypes });
+      const prj = createWelcomeProject({
+        cables: c.cables,
+        ipTypes: c.ipTypes,
+        energyPriceBrlKwh: getDefaultEnergyPrice() ?? DEFAULT_ENERGY_PRICE_BRL_KWH,
+      });
       setSavedProjects((p) => ({ ...p, [prj.id]: prj }));
       ApiService.createProject(prj);
       return prj.id;
