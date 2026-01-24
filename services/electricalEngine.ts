@@ -1,6 +1,6 @@
 
-import { NetworkNode, ProjectParams, EngineResult, MonteCarloResult, SustainabilityMetrics, GdImpactMetrics } from '../types.ts';
-import { DMDI_TABLES, PROFILES } from '../constants.ts';
+import type { NetworkNode, ProjectParams, EngineResult, MonteCarloResult } from '../types.js';
+import { DMDI_TABLES, PROFILES } from '../constants.js';
 
 /**
  * Interface estendida para processamento interno da árvore de rede.

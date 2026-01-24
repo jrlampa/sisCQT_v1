@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Project, User } from '../types';
 import { useToast } from '../context/ToastContext.tsx';
 import { KmlService } from '../services/kmlService';
@@ -6,7 +6,7 @@ import { useProject } from '../context/ProjectContext';
 
 const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => void; onSelectProject: (id: string) => void; }> = ({ user, onLogout, onBilling, onSelectProject }) => {
   const { showToast } = useToast();
-  const { savedProjects, createProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
+  const { savedProjects, createProject, createWelcomeProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -20,14 +20,55 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
 
-
-  const projectList = (Object.values(savedProjects) as Project[]).sort((a, b) => 
-    new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  const WELCOME_NAME = 'Projeto Modelo (WELCOME)';
+  const hasWelcomeProject = useMemo(
+    () => Object.values(savedProjects).some((p) => p?.name === WELCOME_NAME),
+    [savedProjects]
   );
 
-  const handleCreateProject = (name: string, sob: string, pe: string, lat: number, lng: number) => {
-    createProject(name, sob, pe, lat, lng);
-    showToast(`Projeto "${name}" criado!`, 'success');
+  const projectList = useMemo(
+    () =>
+      (Object.values(savedProjects) as Project[]).sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [savedProjects]
+  );
+
+  // Cria automaticamente um projeto WELCOME para novos usuários (apenas se não existir nenhum projeto).
+  useEffect(() => {
+    const flagKey = 'sisqat_welcome_project_created';
+    if (projectList.length !== 0) return;
+    if (hasWelcomeProject) return;
+    if (isImporting) return;
+    if (isModalOpen) return;
+    if (localStorage.getItem(flagKey) === 'true') return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const id = await createWelcomeProject();
+        if (cancelled) return;
+        localStorage.setItem(flagKey, 'true');
+        showToast('Projeto Modelo criado. Abra para explorar Editor, GIS e Theseus.', 'info');
+        // seleciona automaticamente para “welcome”
+        setCurrentProjectId(id);
+        onSelectProject(id);
+      } catch (e: any) {
+        // se falhar (ex.: constantes indisponíveis), não trava o Hub
+        if (cancelled) return;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectList.length, hasWelcomeProject, isImporting, isModalOpen, createWelcomeProject, setCurrentProjectId, onSelectProject, showToast]);
+
+  const handleCreateProject = async (name: string, sob: string, pe: string, lat: number, lng: number) => {
+    try {
+      await createProject(name, sob, pe, lat, lng);
+      showToast(`Projeto "${name}" criado!`, 'success');
+    } catch (e: any) {
+      showToast(e?.message || "Falha ao criar projeto (constantes indisponíveis).", "error");
+    }
   };
 
   const handleSelectProject = (projectId: string) => {
@@ -49,7 +90,7 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
 
 
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = async () => {
     const { name, sob, pe, lat, lng } = formProject;
     if (!name.trim() || !sob.trim()) return showToast("Preencha os campos obrigatórios", "warning");
     
@@ -61,7 +102,12 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
       });
     }
     else {
-      createProject(name, sob, pe, parseFloat(lat), parseFloat(lng));
+      try {
+        await createProject(name, sob, pe, parseFloat(lat), parseFloat(lng));
+      } catch (e: any) {
+        showToast(e?.message || "Falha ao criar projeto (constantes indisponíveis).", "error");
+        return;
+      }
     }
     
     setIsModalOpen(false);
@@ -94,7 +140,21 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
             <div className="col-span-full py-32 flex flex-col items-center opacity-30">
                <div className="text-7xl mb-6">📁</div>
                <p className="font-black text-sm uppercase tracking-[0.2em]">Nenhum estudo encontrado</p>
-               <button onClick={() => handleCreateProject('Estudo Exemplo', '2024.0001', 'BT-RJ-01', -22.9, -43.1)} className="mt-6 text-xs font-black text-blue-600 underline">Carregar Demo</button>
+               <button
+                 onClick={async () => {
+                   try {
+                     const id = await createWelcomeProject();
+                     showToast('Projeto Modelo criado!', 'success');
+                     setCurrentProjectId(id);
+                     onSelectProject(id);
+                   } catch (e: any) {
+                     showToast(e?.message || 'Falha ao criar Projeto Modelo.', 'error');
+                   }
+                 }}
+                 className="mt-6 text-xs font-black text-blue-600 underline"
+               >
+                 Criar Projeto Modelo (WELCOME)
+               </button>
             </div>
           ) : (
             projectList.map((prj) => (
@@ -125,17 +185,17 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
             <div className="flex flex-col gap-6">
               <div className="grid grid-cols-2 gap-4">
                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">SOB / ID</label>
-                    <input className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.sob} onChange={e => setFormProject({...formProject, sob: e.target.value})} />
+                    <label htmlFor="project-sob" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">SOB / ID</label>
+                    <input id="project-sob" aria-label="SOB / ID" className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.sob} onChange={e => setFormProject({...formProject, sob: e.target.value})} />
                  </div>
                  <div className="flex flex-col gap-2">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ponto Elétrico</label>
-                    <input className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.pe} onChange={e => setFormProject({...formProject, pe: e.target.value})} />
+                    <label htmlFor="project-pe" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Ponto Elétrico</label>
+                    <input id="project-pe" aria-label="Ponto Elétrico" className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.pe} onChange={e => setFormProject({...formProject, pe: e.target.value})} />
                  </div>
               </div>
               <div className="flex flex-col gap-2">
-                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Título do Estudo</label>
-                 <input className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.name} onChange={e => setFormProject({...formProject, name: e.target.value})} />
+                 <label htmlFor="project-name" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Título do Estudo</label>
+                 <input id="project-name" aria-label="Título do Estudo" className="w-full bg-white/50 border border-gray-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-blue-400 transition-all" value={formProject.name} onChange={e => setFormProject({...formProject, name: e.target.value})} />
               </div>
               <button onClick={handleFormSubmit} className="mt-6 bg-blue-600 text-white py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all">Inicializar Workspace ➔</button>
               <button onClick={() => setIsModalOpen(false)} className="text-[10px] font-black text-gray-300 hover:text-gray-500 transition-colors uppercase tracking-widest">Cancelar</button>
@@ -144,15 +204,17 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
         </div>
       )}
       
-      <input type="file" ref={fileInputRef} className="hidden" accept=".kml,.kmz" onChange={async (e) => {
+      <input aria-label="Importar arquivo KML/KMZ" type="file" ref={fileInputRef} className="hidden" accept=".kml,.kmz" onChange={async (e) => {
         const file = e.target.files?.[0];
         if (file) {
           setIsImporting(true);
           try {
             const data = await KmlService.parseFile(file);
-            handleCreateProject(file.name, 'KML.' + Math.floor(Math.random()*1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
+            await createProject(file.name, 'KML.' + Math.floor(Math.random()*1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
             showToast("Importação KML concluída!", "success");
-          } catch(err) { showToast("Falha no KML", "error"); }
+          } catch(err: any) {
+            showToast(err?.message || "Falha no KML", "error");
+          }
           finally { setIsImporting(false); }
         }
       }} />

@@ -2,7 +2,7 @@
 import JSZip from 'jszip';
 import { NetworkNode, ProjectMetadata } from '../types';
 import { GisService } from './gisService';
-import { DEFAULT_CABLES } from '../constants';
+import { ApiService } from './apiService';
 
 export class KmlService {
   /**
@@ -20,10 +20,14 @@ export class KmlService {
       kmlText = await file.text();
     }
 
-    return this.parseKml(kmlText);
+    // Seleciona um cabo padrão a partir das constantes do backend.
+    const constants = await ApiService.getConstants();
+    const defaultCable = Object.keys(constants.cables || {})[4] || Object.keys(constants.cables || {})[0] || '3x95+54.6mm² Al';
+
+    return this.parseKml(kmlText, defaultCable);
   }
 
-  private static parseKml(kmlText: string): { nodes: NetworkNode[]; metadata: Partial<ProjectMetadata> } {
+  private static parseKml(kmlText: string, defaultCable: string): { nodes: NetworkNode[]; metadata: Partial<ProjectMetadata> } {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(kmlText, 'text/xml');
     const placemarks = xmlDoc.getElementsByTagName('Placemark');
@@ -57,7 +61,7 @@ export class KmlService {
       id: 'TRAFO',
       parentId: '',
       meters: 0,
-      cable: Object.keys(DEFAULT_CABLES)[4],
+      cable: defaultCable,
       loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
       lat: trafoSource.lat,
       lng: trafoSource.lng,
@@ -77,7 +81,7 @@ export class KmlService {
         id: nodeId,
         parentId: lastParentId,
         meters: dist > 0 ? dist : 30,
-        cable: Object.keys(DEFAULT_CABLES)[4],
+        cable: defaultCable,
         loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
         lat: p.lat,
         lng: p.lng,

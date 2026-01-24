@@ -3,20 +3,44 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Project, EngineResult, Scenario, NetworkNode } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
-import { createTemplateProject, generateId } from '../utils/projectUtils';
+import { createTemplateProject, createWelcomeProject, generateId } from '../utils/projectUtils';
 
 export function useProjectManagement() {
   const { showToast } = useToast();
   const [savedProjects, setSavedProjects] = useState<Record<string, Project>>({});
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   const [allResults, setAllResults] = useState<Record<string, EngineResult>>({});
+  const [calcErrors, setCalcErrors] = useState<Record<string, string>>({});
   const [isCalculating, setIsCalculating] = useState(false);
   const [recalcTrigger, setRecalcTrigger] = useState(0);
+  const [serverConstants, setServerConstants] = useState<{
+    cables: Project['cables'];
+    ipTypes: Project['ipTypes'];
+    dmdiTables: Record<string, any[]>;
+    profiles: Record<string, any>;
+  } | null>(null);
 
-  // Carregamento inicial do Backend
+  const reloadFromBackend = useCallback(() => {
+    ApiService.getProjects()
+      .then(setSavedProjects)
+      .catch((err: any) => {
+        if (err?.message !== 'Sessão expirada') {
+          showToast("Erro ao carregar projetos do servidor", "error");
+        }
+      });
+
+    ApiService.getConstants()
+      .then((c) => setServerConstants({ cables: c.cables, ipTypes: c.ipTypes, dmdiTables: c.dmdiTables, profiles: c.profiles }))
+      .catch(() => {});
+  }, [showToast]);
+
+  // Carregamento inicial do Backend + recarrega ao autenticar/desautenticar
   useEffect(() => {
-    ApiService.getProjects().then(setSavedProjects).catch(() => showToast("Erro ao carregar projetos do servidor", "error"));
-  }, []);
+    reloadFromBackend();
+    const handler = () => reloadFromBackend();
+    window.addEventListener('sisqat_auth_changed', handler);
+    return () => window.removeEventListener('sisqat_auth_changed', handler);
+  }, [reloadFromBackend]);
 
   const project = useMemo(() => 
     currentProjectId ? savedProjects[currentProjectId] : null, 
@@ -32,19 +56,44 @@ export function useProjectManagement() {
     if (!project) return;
     setIsCalculating(true);
     const timeoutId = setTimeout(async () => {
-      try {
-        const results: Record<string, EngineResult> = {};
-        for (const s of project.scenarios) {
+      const results: Record<string, EngineResult> = {};
+      const errors: Record<string, string> = {};
+
+      for (const s of project.scenarios) {
+        try {
           results[s.id] = await ApiService.calculateScenario({
-            scenarioId: s.id, nodes: s.nodes, params: s.params, cables: project.cables, ips: project.ipTypes
+            scenarioId: s.id,
+            nodes: s.nodes,
+            params: s.params,
+            cables: project.cables,
+            ips: project.ipTypes,
           });
+        } catch (err: any) {
+          const details = Array.isArray(err?.details)
+            ? err.details
+                .slice(0, 3)
+                .map((d: any) => (d?.path ? `${d.path}: ${d.message || 'inválido'}` : d?.message))
+                .filter(Boolean)
+                .join(' | ')
+            : null;
+
+          const msg = [
+            err?.message || (typeof err === 'string' ? err : null) || 'Falha ao calcular o cenário.',
+            details ? `(${details})` : null,
+          ]
+            .filter(Boolean)
+            .join(' ');
+          errors[s.id] = msg;
         }
-        setAllResults(results);
-      } catch (err) {
-        showToast("Erro no motor de cálculo remoto", "error");
-      } finally {
-        setIsCalculating(false);
       }
+
+      setAllResults(results);
+      setCalcErrors(errors);
+
+      if (Object.keys(errors).length > 0) {
+        showToast("Um ou mais cenários falharam no motor de cálculo.", "error");
+      }
+      setIsCalculating(false);
     }, 400);
     return () => clearTimeout(timeoutId);
   }, [project, recalcTrigger]);
@@ -69,12 +118,25 @@ export function useProjectManagement() {
 
   return {
     savedProjects, project, activeScenario, activeResult: activeScenario ? allResults[activeScenario.id] : null,
-    allResults, isCalculating, setCurrentProjectId,
-    createProject: (name: string, sob: string, pe: string, lat: number, lng: number) => {
-      const n = createTemplateProject(name, sob, pe, lat, lng);
+    allResults,
+    calcErrors,
+    activeCalcError: activeScenario ? (calcErrors[activeScenario.id] || null) : null,
+    backendConstants: serverConstants,
+    isCalculating,
+    setCurrentProjectId,
+    createProject: async (name: string, sob: string, pe: string, lat: number, lng: number) => {
+      const c = serverConstants ?? (await ApiService.getConstants());
+      const n = createTemplateProject(name, sob, pe, lat, lng, { cables: c.cables, ipTypes: c.ipTypes });
       setSavedProjects(p => ({ ...p, [n.id]: n }));
       ApiService.createProject(n); // Use POST for creation
       return n.id;
+    },
+    createWelcomeProject: async () => {
+      const c = serverConstants ?? (await ApiService.getConstants());
+      const prj = createWelcomeProject({ cables: c.cables, ipTypes: c.ipTypes });
+      setSavedProjects((p) => ({ ...p, [prj.id]: prj }));
+      ApiService.createProject(prj);
+      return prj.id;
     },
     // Add missing method to duplicate an entire project
     duplicateProject: (id: string) => {

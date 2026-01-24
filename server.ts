@@ -1,12 +1,19 @@
-import { PrismaClientKnownRequestError, PrismaClientValidationError } from '@prisma/client/runtime/library';
 import express from 'express';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { ElectricalEngine } from './services/electricalEngine.ts';
-import { GeminiService } from './services/geminiService.ts';
-import { gisController } from './controllers/gisController.ts';
-import { authMiddleware } from './middlewares/authMiddleware.ts';
-import { prisma } from './utils/db.ts';
+import { authRoutes } from './routes/authRoutes.js';
+import { constantsRoutes } from './routes/constantsRoutes.js';
+import { projectRoutes } from './routes/projectRoutes.js';
+import { engineRoutes } from './routes/engineRoutes.js';
+import { geminiRoutes } from './routes/geminiRoutes.js';
+import { gisRoutes } from './routes/gisRoutes.js';
+import { healthRoutes } from './routes/healthRoutes.js';
+import { authMiddleware } from './middlewares/authMiddleware.js';
+import { errorHandler } from './middlewares/errorHandler.js';
+import { assertProdAuthConfig } from './utils/tokenUtils.js';
 
 
 
@@ -14,6 +21,31 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+const isProd = process.env.NODE_ENV === 'production';
+
+// Proxy (Cloud Run / Azure App Service)
+// Necessário para `req.ip` correto (rate limit) e HTTPS detection.
+const trustProxyEnv = process.env.TRUST_PROXY;
+const trustProxy =
+  trustProxyEnv === undefined
+    ? (isProd ? 1 : false)
+    : (trustProxyEnv === 'true'
+        ? true
+        : (trustProxyEnv === 'false'
+            ? false
+            : (Number.isFinite(Number(trustProxyEnv)) ? Number(trustProxyEnv) : (isProd ? 1 : false))));
+app.set('trust proxy', trustProxy as any);
+
+// Entra-only em produção: falhar cedo se envs obrigatórias não estiverem definidas.
+assertProdAuthConfig();
+
+// Hardening mínimo (headers + compress)
+app.use(helmet({
+  // Mantém compatibilidade com recursos cross-origin (mapas, assets) no cenário atual.
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+app.use(compression());
 
 // 1. MIME Type Middleware - CRÍTICO PARA O PREVIEW
 app.use((req, res, next) => {
@@ -26,140 +58,83 @@ app.use((req, res, next) => {
 // 2. CORS e Headers
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin as string | undefined;
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Em produção, CORS só para origens explicitamente autorizadas.
+  // Em desenvolvimento, espelhamos a Origin (ou '*' quando não houver Origin).
+  if (!isProd) {
+    res.setHeader('Access-Control-Allow-Origin', origin ?? '*');
+    if (origin) res.setHeader('Vary', 'Origin');
+  } else if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  res.setHeader('Access-Control-Max-Age', '600');
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
-app.use(express.json() as any);
+// Limites de payload (evita abuso e payloads gigantes)
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
+const urlencodedBodyLimit = process.env.URLENCODED_BODY_LIMIT || '2mb';
+app.use(express.json({ limit: jsonBodyLimit }) as any);
+app.use(express.urlencoded({ extended: true, limit: urlencodedBodyLimit }) as any);
+
+// Rate limiting básico (principalmente em produção)
+const rateLimitDisabled = process.env.RATE_LIMIT_DISABLED === 'true';
+if (!rateLimitDisabled) {
+  const windowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+  const max = Number(process.env.RATE_LIMIT_MAX || (isProd ? 300 : 1000));
+
+  app.use('/api', rateLimit({
+    windowMs: Number.isFinite(windowMs) && windowMs > 0 ? windowMs : 15 * 60 * 1000,
+    max: Number.isFinite(max) && max > 0 ? max : (isProd ? 300 : 1000),
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (_req, res) => {
+      res.status(429).json({ success: false, error: 'Muitas requisições. Tente novamente em instantes.' });
+    },
+  }) as any);
+}
 
 const PORT = process.env.PORT || 8080;
 
-// API Routes
-app.post('/api/auth/sync', authMiddleware as any, (req, res) => {
-  res.json({ user: (req as any).user });
-});
-
-app.get('/api/auth/me', authMiddleware as any, (req, res) => {
-  res.json((req as any).user);
-});
-
-app.get('/api/projects', authMiddleware as any, async (req, res) => {
-  try {
-    const user = (req as any).user;
-    const projects = await prisma.project.findMany();
-    res.json(projects);
-  } catch (e) {
-    res.status(500).json({ error: 'Erro ao listar projetos.' });
-  }
-});
-
-app.post('/api/projects', authMiddleware as any, async (req, res) => {
-  try {
-    const user = (req as any).user;
-    const project = await prisma.project.create({
-      data: {
-        ...req.body,
-        userId: user.id,
-      },
-    });
-    res.status(201).json(project);
-  } catch (e: any) {
-    console.error("Failed to create project:", e.name, e.code, e); // DEBUG LOG
-    if (e.name === 'PrismaClientValidationError') {
-      return res.status(400).json({ error: 'Erro de validação ao criar projeto: ' + e.message });
-    }
-    res.status(500).json({ error: 'Erro ao criar projeto.' });
-  }
-});
-
-app.put('/api/projects/:id', authMiddleware as any, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const project = await prisma.project.update({
-      where: { id },
-      data: req.body,
-    });
-    res.json(project);
-  } catch (e: any) {
-    console.error("Failed to update project:", e.name, e.code, e); // DEBUG LOG
-    if (e.name === 'PrismaClientValidationError') {
-        return res.status(400).json({ error: 'Erro de validação ao atualizar projeto: ' + e.message });
-    } else if (e.name === 'PrismaClientKnownRequestError' && e.code === 'P2025') {
-        return res.status(404).json({ error: 'Projeto não encontrado.' });
-    }
-    res.status(500).json({ error: 'Erro ao atualizar projeto.' });
-  }
-});
-
-app.delete('/api/projects/:id', authMiddleware as any, async (req, res) => {
-  try {
-    const { id } = req.params;
-    await prisma.project.delete({
-      where: { id },
-    });
-    res.status(204).send();
-  } catch (e: any) {
-    console.error("Failed to delete project:", e.name, e.code, e); // DEBUG LOG
-    if (e.name === 'PrismaClientKnownRequestError' && e.code === 'P2025') {
-        return res.status(404).json({ error: 'Projeto não encontrado.' });
-    }
-    res.status(500).json({ error: 'Erro ao apagar projeto.' });
-  }
-});
-
-app.post('/api/calculate', authMiddleware as any, (req, res) => {
-  const { scenarioId, nodes, params, cables, ips } = req.body;
-  try {
-    const result = ElectricalEngine.calculate(scenarioId, nodes, params, cables, ips);
-    res.json(result);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/gemini/ask', authMiddleware as any, async (req, res) => {
-  const { prompt, context } = req.body;
-  if (!prompt) {
-    return res.status(400).json({ error: 'Prompt is required' });
-  }
-
-  try {
-    const result = await GeminiService.askEngineeringQuestion(prompt, context);
-    res.json({ result });
-  } catch (error: any) {
-    console.error("Error in /api/gemini/ask:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// GIS Routes
-app.get('/api/gis/nodes', authMiddleware as any, gisController.getNodes);
-app.post('/api/gis/nodes', authMiddleware as any, gisController.createNode);
-
-app.post('/api/optimize', authMiddleware as any, (req, res) => {
-  const { nodes } = req.body;
-  // Placeholder: A lógica de otimização real seria implementada aqui.
-  // Por agora, apenas retornamos os nós recebidos para simular sucesso.
-  console.log('Optimization requested, returning mock data.');
-  res.json(nodes);
-});
+app.use('/api/auth', authRoutes);
+app.use('/api/constants', constantsRoutes);
+app.use('/api', healthRoutes);
+app.use('/api/projects', authMiddleware as any, projectRoutes);
+app.use('/api', engineRoutes);
+app.use('/api/gemini', geminiRoutes);
+app.use('/api/gis', gisRoutes);
 
 // Static files handling
-const staticDir = path.resolve(__dirname);
+// Em dev, `__dirname` aponta para a raiz do repo; em prod, para `dist/server`.
+const staticDir = isProd ? path.resolve(__dirname, '../client') : path.resolve(__dirname);
 app.use(express.static(staticDir) as any);
 
 // SPA Fallback
 // A MUDANÇA É AQUI: Trocámos '*' por /.*/ (Express 5 exige Regex ou sintaxe diferente)
 app.get(/.*/, (req: any, res: any) => {
-  if (req.url.startsWith('/api')) return res.status(404).json({ error: 'API not found' });
+  if (req.url.startsWith('/api')) return res.status(404).json({ success: false, error: 'API not found' });
   res.sendFile(path.join(staticDir, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`>>> siSCQT Enterprise active on port ${PORT}`);
-});
+// Error handler (fallback)
+app.use(errorHandler as any);
+
+// Em testes (Vitest), evitamos abrir uma porta / manter handles abertos.
+// O Supertest consegue exercitar o `app` diretamente sem `listen()`.
+const isVitest = process.env.VITEST === 'true' || process.env.VITEST === '1';
+if (!isVitest && process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`>>> siSCQT Enterprise active on port ${PORT}`);
+  });
+}
 
 export default app;

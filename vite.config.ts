@@ -18,6 +18,9 @@ export default defineConfig(({ mode }) => {
             usePolling: true,
         },
       },
+      build: {
+        outDir: 'dist/client',
+      },
       plugins: [react()],
       resolve: {
         alias: {

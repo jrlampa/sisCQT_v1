@@ -1,0 +1,43 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist/server",
+    "rootDir": ".",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "sourceMap": true,
+    "noEmit": false
+  },
+  "include": [
+    "server.ts",
+    "routes/**/*.ts",
+    "controllers/**/*.ts",
+    "middlewares/**/*.ts",
+    "schemas/**/*.ts",
+    "services/**/*.ts",
+    "utils/**/*.ts",
+    "constants.ts",
+    "types.ts",
+    "express.d.ts"
+  ],
+  "exclude": [
+    "services/apiService.ts",
+    "services/electricalWorker.ts",
+    "services/gisService.ts",
+    "services/kmlService.ts",
+    "utils/projectUtils.ts",
+    "tests/**",
+    "**/*.test.ts",
+    "components/**",
+    "context/**",
+    "hooks/**",
+    "App.tsx",
+    "index.tsx",
+    "vite.config.ts",
+    "vitest.config.ts"
+  ]
+}
+

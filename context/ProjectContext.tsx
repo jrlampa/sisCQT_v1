@@ -13,9 +13,13 @@ interface ProjectContextType {
   activeScenario: Scenario | null;
   activeResult: EngineResult | null;
   allResults: Record<string, EngineResult>;
+  calcErrors: Record<string, string>;
+  activeCalcError: string | null;
+  backendConstants: any | null;
   isCalculating: boolean;
   setCurrentProjectId: (id: string | null) => void;
-  createProject: (name: string, sob: string, pe: string, lat: number, lng: number) => string;
+  createProject: (name: string, sob: string, pe: string, lat: number, lng: number) => Promise<string>;
+  createWelcomeProject: () => Promise<string>;
   duplicateProject: (id: string) => void;
   deleteProject: (id: string) => Promise<void>;
   optimizeActive: () => Promise<void>;
@@ -45,9 +49,13 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     activeScenario: pm.activeScenario,
     activeResult: pm.activeResult,
     allResults: pm.allResults,
+    calcErrors: pm.calcErrors,
+    activeCalcError: pm.activeCalcError,
+    backendConstants: (pm as any).backendConstants ?? null,
     isCalculating: pm.isCalculating,
     setCurrentProjectId: pm.setCurrentProjectId,
     createProject: pm.createProject,
+    createWelcomeProject: (pm as any).createWelcomeProject,
     duplicateProject: pm.duplicateProject,
     deleteProject: pm.deleteProject,
     optimizeActive: pm.optimizeActive,

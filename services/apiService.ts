@@ -2,8 +2,36 @@ import { Project, EngineResult, User, NetworkNode } from '../types.ts';
 
 const API_BASE = '/api';
 const TOKEN_KEY = 'sisqat_auth_token';
+const DEFAULT_TIMEOUT_MS = 15000;
+
+export interface ApiConstants {
+  cables: Project['cables'];
+  ipTypes: Project['ipTypes'];
+  dmdiTables: Record<string, any[]>;
+  profiles: Record<string, any>;
+}
+
+export class ApiError extends Error {
+  status: number;
+  details?: any;
+  constructor(message: string, status: number, details?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.details = details;
+  }
+}
 
 export class ApiService {
+  private static constantsCache: ApiConstants | null = null;
+  private static constantsPromise: Promise<ApiConstants> | null = null;
+
+  private static notifyAuthChanged() {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('sisqat_auth_changed'));
+    }
+  }
+
   private static async request<T>(path: string, options?: RequestInit): Promise<T> {
     const token = localStorage.getItem(TOKEN_KEY);
     const headers: HeadersInit = {
@@ -13,20 +41,34 @@ export class ApiService {
 
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
+    const controller = new AbortController();
+    const timeoutMs = typeof (options as any)?.timeoutMs === 'number' ? (options as any).timeoutMs : DEFAULT_TIMEOUT_MS;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    // Se o caller passar um signal, repassamos o cancelamento.
+    if (options?.signal) {
+      options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+
     try {
-      const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
+      const response = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal });
       
       if (response.status === 401) {
         if (!window.location.pathname.includes('/login')) {
             localStorage.removeItem(TOKEN_KEY);
+            this.notifyAuthChanged();
             window.location.href = '/login';
         }
-        throw new Error("Sessão expirada");
+        throw new ApiError("Sessão expirada", 401);
       }
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Erro API: ${response.status}`);
+        const errorData = await response.json().catch(() => ({} as any));
+        throw new ApiError(
+          errorData.error || `Erro API: ${response.status}`,
+          response.status,
+          errorData.details ?? null
+        );
       }
 
       if (response.status === 204) {
@@ -35,13 +77,19 @@ export class ApiService {
       
       return response.json();
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new ApiError('Timeout na requisição', 408);
+      }
       console.error(`Falha na requisição ${path}:`, error);
       throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
     }
   }
 
   static async syncUser(accessToken: string): Promise<User> {
     localStorage.setItem(TOKEN_KEY, accessToken);
+    this.notifyAuthChanged();
     const res = await this.request<{user: User}>('/auth/sync', {
       method: 'POST',
       body: JSON.stringify({ token: accessToken })
@@ -53,8 +101,25 @@ export class ApiService {
     return this.request<User>('/auth/me');
   }
 
+  static async getConstants(): Promise<ApiConstants> {
+    if (this.constantsCache) return this.constantsCache;
+    if (this.constantsPromise) return this.constantsPromise;
+
+    this.constantsPromise = this.request<ApiConstants>('/constants')
+      .then((c) => {
+        this.constantsCache = c;
+        return c;
+      })
+      .finally(() => {
+        this.constantsPromise = null;
+      });
+
+    return this.constantsPromise;
+  }
+
   static async logout(): Promise<void> {
     localStorage.removeItem(TOKEN_KEY);
+    this.notifyAuthChanged();
   }
 
   static async getProjects(): Promise<Record<string, Project>> {
@@ -100,5 +165,16 @@ export class ApiService {
       body: JSON.stringify({ prompt, context })
     });
     return response.result;
+  }
+
+  static async getGisNodes(): Promise<any> {
+    return this.request<any>('/gis/nodes');
+  }
+
+  static async createGisNode(payload: { lat: number; lng: number; type: 'TRAFO' | 'POSTE'; name: string; properties?: Record<string, any> }): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/gis/nodes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 }

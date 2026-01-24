@@ -1,9 +1,15 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
-import { Project, NetworkNode, Scenario, ProjectParams, EngineResult } from '../types';
-import { DMDI_TABLES, PROFILES } from '../constants';
+import { Project, NetworkNode } from '../types';
 import UnifilarDiagram from './UnifilarDiagram';
 import { useToast } from '../context/ToastContext.tsx';
+import { useProject } from '../context/ProjectContext';
+
+const FALLBACK_PROFILES: Record<string, { cqtMax: number; loadMax: number }> = {
+  "Urbano Padrão": { cqtMax: 5.0, loadMax: 100 },
+  "Rural": { cqtMax: 10.0, loadMax: 100 },
+  "Massivos": { cqtMax: 6.0, loadMax: 120 },
+};
 
 interface EditorRowProps {
   node: NetworkNode;
@@ -13,17 +19,18 @@ interface EditorRowProps {
   cables: Project['cables'];
   ipTypes: Project['ipTypes'];
   profile: string;
+  profiles?: Record<string, any> | null;
   onUpdateField: (nodeId: string, field: string, value: any) => void;
   onRemove: (nodeId: string) => void;
   rowIndex: number;
 }
 
 const EditorRow: React.FC<EditorRowProps> = React.memo(({ 
-  node, resNode, isTrafo, isChanged, cables, ipTypes, profile, onUpdateField, onRemove, rowIndex 
+  node, resNode, isTrafo, isChanged, cables, ipTypes, profile, profiles, onUpdateField, onRemove, rowIndex 
 }) => {
   const cableData = cables[node.cable];
   const isOverloaded = !isTrafo && (resNode?.calculatedLoad || 0) > (cableData?.ampacity || 0);
-  const profileData = (PROFILES as any)[profile] || PROFILES["Massivos"];
+  const profileData = (profiles as any)?.[profile] || (FALLBACK_PROFILES as any)[profile] || FALLBACK_PROFILES["Massivos"];
   const isCriticalCqt = !isTrafo && (resNode?.accumulatedCqt ?? 0) > profileData.cqtMax;
   
   const hasActiveReverseFlow = !isTrafo && (resNode?.netCurrentDay || 0) < -0.5;
@@ -89,6 +96,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         ) : (
           <input 
             data-row={rowIndex} data-col={0}
+            aria-label="ID do ponto"
+            title="ID do ponto"
             className="w-full bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-black focus:border-blue-500 focus:ring-4 focus:ring-blue-100 outline-none transition-all" 
             value={node.id} 
             onChange={e => onUpdateField(node.id, 'id', e.target.value.toUpperCase())}
@@ -101,6 +110,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         {!isTrafo && (
           <input 
             data-row={rowIndex} data-col={1}
+            aria-label="ID do pai"
+            title="ID do pai"
             className="w-full bg-white/50 border border-gray-100 px-3 py-2 rounded-xl text-xs font-bold uppercase outline-none focus:border-blue-400" 
             value={node.parentId} 
             onChange={e => onUpdateField(node.id, 'parentId', e.target.value.toUpperCase())}
@@ -113,6 +124,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         {!isTrafo && (
           <input 
             data-row={rowIndex} data-col={2}
+            aria-label="Vão em metros"
+            title="Vão em metros"
             className="w-full bg-transparent text-center text-xs font-bold border-b-2 border-gray-100 focus:border-blue-500 outline-none" 
             value={localMeters} 
             onChange={e => setLocalMeters(e.target.value)}
@@ -126,6 +139,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         {!isTrafo && (
           <select 
             data-row={rowIndex} data-col={3}
+            aria-label="Condutor"
+            title="Condutor"
             className={`w-full bg-white/60 px-3 py-2 rounded-xl text-[10px] font-black border transition-all focus:border-blue-500 outline-none
                 ${isChanged ? 'border-blue-500 shadow-lg shadow-blue-50 ring-2 ring-blue-200' : 'border-gray-100'}`} 
             value={node.cable} 
@@ -142,6 +157,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
           {[{k: 'mono', c: 4}, {k: 'bi', c: 5}, {k: 'tri', c: 6}].map(item => (
             <input 
               key={item.k} data-row={rowIndex} data-col={item.c}
+              aria-label={`Residencial ${item.k}`}
+              title={`Residencial ${item.k}`}
               className="w-9 h-9 rounded-lg border border-gray-100 bg-white text-center text-[11px] font-black text-blue-600 focus:ring-2 focus:ring-blue-100 outline-none" 
               value={node.loads[item.k as keyof typeof node.loads]} 
               onChange={e => handleIntChange(item.k, e.target.value)} 
@@ -155,12 +172,16 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         <div className="flex gap-1 justify-center">
             <input 
               data-row={rowIndex} data-col={7}
+              aria-label="Quantidade de GD Solar"
+              title="Quantidade de GD Solar"
               className="w-9 h-9 rounded-lg border border-orange-100 bg-white text-center text-[11px] font-black text-orange-600 outline-none" 
               value={node.loads.solarQty} onChange={e => handleIntChange('solarQty', e.target.value)} 
               onKeyDown={e => handleKeyDown(e, 7)}
             />
             <input 
               data-row={rowIndex} data-col={8}
+              aria-label="Potência Solar (kVA)"
+              title="Potência Solar (kVA)"
               className="w-14 h-9 rounded-lg border border-orange-100 bg-white text-center text-[11px] font-black text-orange-600 outline-none" 
               value={localSolarKva} 
               onChange={e => setLocalSolarKva(e.target.value)}
@@ -174,12 +195,16 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         <div className="flex gap-1 justify-center">
             <input 
               data-row={rowIndex} data-col={9}
+              aria-label="Quantidade de cargas pontuais"
+              title="Quantidade de cargas pontuais"
               className="w-9 h-9 rounded-lg border border-indigo-100 bg-white text-center text-[11px] font-black text-indigo-600 outline-none" 
               value={node.loads.pointQty} onChange={e => handleIntChange('pointQty', e.target.value)} 
               onKeyDown={e => handleKeyDown(e, 9)}
             />
             <input 
               data-row={rowIndex} data-col={10}
+              aria-label="Potência pontual (kVA)"
+              title="Potência pontual (kVA)"
               className="w-14 h-9 rounded-lg border border-indigo-100 bg-white text-center text-[11px] font-black text-indigo-600 outline-none" 
               value={localPointKva} 
               onChange={e => setLocalPointKva(e.target.value)}
@@ -193,6 +218,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         <div className="flex gap-1 justify-center">
           <select 
             data-row={rowIndex} data-col={11}
+            aria-label="Tipo de Iluminação Pública"
+            title="Tipo de Iluminação Pública"
             className="bg-white border border-gray-100 rounded-lg px-1 py-1 text-[9px] font-black text-gray-600 outline-none" 
             value={node.loads.ipType} 
             onChange={e => onUpdateField(node.id, 'ipType', e.target.value)}
@@ -202,6 +229,8 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
           </select>
           <input 
             data-row={rowIndex} data-col={12}
+            aria-label="Quantidade de Iluminação Pública"
+            title="Quantidade de Iluminação Pública"
             className="w-8 h-8 rounded-lg border border-gray-100 bg-white text-center text-[10px] font-black outline-none" 
             value={node.loads.ipQty} onChange={e => handleIntChange('ipQty', e.target.value)} 
             onKeyDown={e => handleKeyDown(e, 12)}
@@ -235,13 +264,13 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
 
 const ProjectEditor: React.FC = () => {
   const { showToast } = useToast();
-  const { project, activeScenario, updateActiveScenario, optimizeActive, forceRecalculate, activeResult } = useProject();
+  const { project, activeScenario, updateActiveScenario, optimizeActive, forceRecalculate, activeResult, activeCalcError, isCalculating, backendConstants } = useProject();
 
-  if (!project || !activeScenario || !activeResult) {
+  if (!project || !activeScenario) {
     return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Editor...</div>;
   }
   const currentProjectAndScenario = { ...project, ...activeScenario };
-  const calculatedNodes = activeResult.nodes;
+  const calculatedNodes = activeResult?.nodes || [];
   const [view, setView] = useState<'table' | 'diagram'>('table');
 
   const handleUpdateField = useCallback((nodeId: string, field: string, value: any) => {
@@ -294,6 +323,22 @@ const ProjectEditor: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500 pb-20">
+      {activeCalcError && (
+        <div className="glass p-5 rounded-[28px] border border-orange-200 bg-orange-50/40 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex flex-col">
+            <span className="text-[9px] font-black uppercase tracking-widest text-orange-600">Cálculo indisponível</span>
+            <span className="text-[10px] font-bold text-gray-600">{activeCalcError}</span>
+          </div>
+          <button
+            onClick={forceRecalculate}
+            disabled={isCalculating}
+            className="px-6 py-3 bg-orange-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
+          >
+            Recalcular
+          </button>
+        </div>
+      )}
+
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/40 p-6 rounded-[32px] border border-white/60">
         <div>
           <h2 className="text-2xl font-black text-gray-800 tracking-tighter uppercase leading-none">Editor de Topologia</h2>
@@ -339,6 +384,7 @@ const ProjectEditor: React.FC = () => {
                   cables={currentProjectAndScenario.cables}
                   ipTypes={currentProjectAndScenario.ipTypes}
                   profile={currentProjectAndScenario.params.profile}
+                  profiles={(backendConstants as any)?.profiles || null}
                   onUpdateField={handleUpdateField}
                   onRemove={handleRemove}
                 />
@@ -348,15 +394,30 @@ const ProjectEditor: React.FC = () => {
         </div>
       ) : (
         <div className="h-[700px]">
-          <UnifilarDiagram 
-            interactive
-            nodes={currentProjectAndScenario.nodes}
-            result={activeResult}
-            cables={currentProjectAndScenario.cables}
-            onUpdateNode={handleUpdateField}
-            onRemoveNode={handleRemove}
-            ipTypes={currentProjectAndScenario.ipTypes}
-          />
+          {activeResult ? (
+            <UnifilarDiagram 
+              interactive
+              nodes={currentProjectAndScenario.nodes}
+              result={activeResult}
+              cables={currentProjectAndScenario.cables}
+              onUpdateNode={handleUpdateField}
+              onRemoveNode={handleRemove}
+              ipTypes={currentProjectAndScenario.ipTypes}
+            />
+          ) : (
+            <div className="h-full flex items-center justify-center glass rounded-[32px] border border-white/60">
+              <div className="text-center">
+                <div className="text-3xl mb-4">📉</div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-500">Diagrama indisponível sem cálculo</p>
+                <button
+                  onClick={forceRecalculate}
+                  className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:scale-105 transition-all"
+                >
+                  Recalcular
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

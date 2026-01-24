@@ -2,7 +2,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ApiService } from '../services/apiService';
 import { Project, EngineResult } from '../types';
-import { DEFAULT_CABLES } from '../constants';
 import { useProject } from '../context/ProjectContext';
 
 const Chatbot: React.FC = () => {
@@ -33,7 +32,7 @@ const Chatbot: React.FC = () => {
 
     // Preparar contexto técnico detalhado para a IA
     const criticalPoints = result.nodes.filter(n => {
-      const cable = DEFAULT_CABLES[n.cable as keyof typeof DEFAULT_CABLES];
+      const cable = (project.cables as any)?.[n.cable];
       return (n.calculatedLoad || 0) > (cable?.ampacity || 0) || (n.accumulatedCqt || 0) > 6;
     });
 

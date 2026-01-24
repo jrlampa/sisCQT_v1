@@ -1,10 +1,11 @@
 
-import { Request, Response } from 'express';
-import { prisma } from '../utils/db';
+import { NextFunction, Request, Response } from 'express';
+import { prisma } from '../utils/db.js';
+import { HttpError } from '../utils/httpError.js';
 
 export const gisController = {
   // Retorna FeatureCollection GeoJSON para consumo direto pelo Leaflet
-  async getNodes(req: Request, res: Response) {
+  async getNodes(req: Request, res: Response, next: NextFunction) {
     try {
       // Extraímos a geometria como JSON (GeoJSON) nativamente pelo PostGIS
       const nodes: any[] = await prisma.$queryRaw`
@@ -34,13 +35,12 @@ export const gisController = {
       // Cast Response to any to handle cases where standard Express methods aren't recognized correctly by the compiler
       (res as any).json(featureCollection);
     } catch (error: any) {
-      console.error(error);
-      (res as any).status(500).json({ error: error.message });
+      return next(new HttpError(500, 'Erro ao carregar nós GIS.', undefined, error));
     }
   },
 
   // Criação de nó com conversão de lat/lng para geometria PostGIS
-  async createNode(req: Request, res: Response) {
+  async createNode(req: Request, res: Response, next: NextFunction) {
     // Cast Request to any to access the body property safely
     const { lat, lng, type, name, properties } = (req as any).body;
     
@@ -61,8 +61,7 @@ export const gisController = {
       
       (res as any).status(201).json({ success: true });
     } catch (error: any) {
-      console.error(error);
-      (res as any).status(500).json({ error: error.message });
+      return next(new HttpError(500, 'Erro ao criar nó GIS.', undefined, error));
     }
   }
 };

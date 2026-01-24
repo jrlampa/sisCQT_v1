@@ -1,16 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../utils/db';
-import { verifyToken } from '../utils/tokenUtils';
+import { prisma } from '../utils/db.js';
+import { verifyToken } from '../utils/tokenUtils.js';
 
 /**
  * Middleware de Autenticação Corporativa
  * Suporta modo real (JWT Entra ID) e modo de desenvolvimento (Mock).
  */
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  const authHeader = (req as any).headers?.authorization;
+  const authHeader = req.headers?.authorization;
+  const isProd = process.env.NODE_ENV === 'production';
 
   // MODO DE TESTE / DESENVOLVIMENTO
-  if (process.env.ENABLE_MOCK_AUTH === 'true' && authHeader === 'Bearer dev-token-im3') {
+  // Em produção, mock é sempre desabilitado (Entra-only).
+  if (!isProd && process.env.ENABLE_MOCK_AUTH === 'true' && authHeader === 'Bearer dev-token-im3') {
     try {
       const testEmail = 'teste@im3brasil.com.br';
       const user = await prisma.user.upsert({
@@ -21,17 +23,17 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
           name: 'Desenvolvedor Local',
         }
       });
-      (req as any).user = user;
+      req.user = user;
       return next();
     } catch (dbError) {
       console.error("Mock Auth DB Error:", dbError);
-      return (res as any).status(500).json({ error: 'Erro de banco de dados no modo de autenticação mock.' });
+      return res.status(500).json({ success: false, error: 'Erro de banco de dados no modo de autenticação mock.' });
     }
   }
 
   // MODO PRODUÇÃO (MICROSOFT ENTRA ID)
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return (res as any).status(401).json({ error: 'Token não fornecido' });
+    return res.status(401).json({ success: false, error: 'Token não fornecido' });
   }
 
   const token = authHeader.split(' ')[1];
@@ -40,13 +42,13 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
     const decoded = await verifyToken(token);
 
     if (!decoded || (!decoded.upn && !decoded.email && !decoded.preferred_username)) {
-      return (res as any).status(401).json({ error: 'Token inválido: faltam claims de utilizador.' });
+      return res.status(401).json({ success: false, error: 'Token inválido: faltam claims de utilizador.' });
     }
 
     const userEmail = (decoded.upn || decoded.email || decoded.preferred_username).toLowerCase();
 
     if (!userEmail.endsWith('@im3brasil.com.br')) {
-      return (res as any).status(403).json({ error: 'Domínio não autorizado.' });
+      return res.status(403).json({ success: false, error: 'Domínio não autorizado.' });
     }
 
     const user = await prisma.user.upsert({
@@ -58,10 +60,10 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       }
     });
 
-    (req as any).user = user;
+    req.user = user;
     next();
   } catch (error) {
     console.error("Authentication error:", error);
-    return (res as any).status(401).json({ error: 'Falha na autenticação: O token pode ser inválido ou expirado.' });
+    return res.status(401).json({ success: false, error: 'Falha na autenticação: O token pode ser inválido ou expirado.' });
   }
 };

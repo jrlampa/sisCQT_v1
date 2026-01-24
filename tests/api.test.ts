@@ -1,8 +1,6 @@
-import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import app from '../server'; // Import the real app instance
-import { mockDeep } from 'vitest-mock-extended';
-import { PrismaClient } from '@prisma/client';
 import { prisma } from '../utils/db';
 
 
@@ -30,23 +28,88 @@ const mockProject = {
   reportConfig: {},
 };
 
+const validProjectPayload = {
+  id: 'prj-new-1',
+  name: 'Valid Project',
+  metadata: {
+    sob: '123',
+    electricPoint: 'PE-1',
+    lat: -23.0,
+    lng: -43.0,
+    city: 'Rio de Janeiro',
+  },
+  activeScenarioId: 'SCN-1',
+  cables: {
+    '3x95+54.6mm² Al': { r: 0.32, x: 0.08, coef: 0.0891, ampacity: 250 },
+  },
+  ipTypes: {
+    'Sem IP': 0,
+  },
+  reportConfig: {
+    showJustification: true,
+    showKpis: true,
+    showTopology: true,
+    showMaterials: true,
+    showSignatures: true,
+    showUnifilar: true,
+    showComparison: false,
+  },
+  scenarios: [
+    {
+      id: 'SCN-1',
+      name: 'ATUAL',
+      updatedAt: new Date().toISOString(),
+      params: {
+        trafoKva: 75,
+        profile: 'Massivos',
+        classType: 'Automatic',
+        manualClass: 'B',
+        normativeTable: 'PRODIST',
+        includeGdInQt: false,
+      },
+      nodes: [
+        {
+          id: 'TRAFO',
+          parentId: '',
+          meters: 0,
+          cable: '3x95+54.6mm² Al',
+          loads: {
+            mono: 0,
+            bi: 0,
+            tri: 0,
+            pointQty: 0,
+            pointKva: 0,
+            ipType: 'Sem IP',
+            ipQty: 0,
+            solarKva: 0,
+            solarQty: 0,
+          },
+        },
+      ],
+    },
+  ],
+};
+
 describe('API Endpoint Tests', () => {
   let authToken: string;
 
   beforeAll(async () => {
-    process.env.ENABLE_MOCK_AUTH = 'true'; // Ensure mock auth is enabled
-
     // Mock Prisma calls as needed for tests
     // @ts-ignore
     prisma.user.upsert.mockResolvedValue(mockUser);
     // @ts-ignore
     prisma.project.findMany.mockResolvedValue([mockProject]);
     // @ts-ignore
+    prisma.project.findFirst.mockImplementation(async ({ where }) => {
+      if (where?.id === 'prj-1' && where?.userId === mockUser.id) return { id: 'prj-1' };
+      return null;
+    });
+    // @ts-ignore
     prisma.project.create.mockImplementation(async (data) => {
       if (!data.data.name || !data.data.metadata || !data.data.userId) {
         throw new Error("Validation Error: Missing required fields");
       }
-      return { ...mockProject, ...data.data, id: `new-prj-${Date.now()}` };
+      return { ...mockProject, ...data.data };
     });
     // @ts-ignore
     prisma.project.update.mockImplementation(async ({ where, data }) => {
@@ -59,35 +122,151 @@ describe('API Endpoint Tests', () => {
         return { ...mockProject, id: where.id };
     });
 
+    // GIS: evita qualquer acesso real ao PostGIS durante os testes
+    // (o controller usa `prisma.$queryRaw` como template tag)
+    // @ts-ignore
+    prisma.$queryRaw?.mockResolvedValue?.([
+      {
+        id: 'node-1',
+        name: 'Nó 1',
+        type: 'TRAFO',
+        properties: { foo: 'bar' },
+        geometry: { type: 'Point', coordinates: [-43.0, -23.0] },
+      },
+    ]);
+
     // Manually set authToken for subsequent requests, reflecting what /auth/sync would return
     // In a real scenario, you'd call /api/auth/sync and extract the token.
     // For this test, we assume the user is authenticated via mock.
     authToken = 'dev-token-im3';
   });
 
+  describe('GET /api/auth/me', () => {
+    it('deve retornar 401 sem token', async () => {
+      const res = await request(app).get('/api/auth/me');
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({ success: false });
+    });
+
+    it('deve retornar o usuário com token mock', async () => {
+      const res = await request(app)
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+      expect(res.body).toMatchObject({
+        id: mockUser.id,
+        email: mockUser.email,
+        name: mockUser.name,
+      });
+    });
+  });
+
+  describe('Health endpoints', () => {
+    it('GET /api/healthz deve retornar 200', async () => {
+      const res = await request(app).get('/api/healthz').expect(200);
+      expect(res.body).toMatchObject({ success: true });
+    });
+
+    it('GET /api/readyz deve retornar 200 quando DB responde', async () => {
+      // @ts-ignore
+      prisma.$queryRawUnsafe?.mockReset?.();
+      // 1) SELECT 1
+      // 2) PostGIS check (pg_extension)
+      // @ts-ignore
+      prisma.$queryRawUnsafe?.mockResolvedValueOnce?.([{ ok: 1 }])?.mockResolvedValueOnce?.([{ extname: 'postgis' }]);
+      const res = await request(app).get('/api/readyz').expect(200);
+      expect(res.body).toMatchObject({ success: true });
+    });
+
+    it('GET /api/readyz deve retornar 503 quando PostGIS não está presente', async () => {
+      // @ts-ignore
+      prisma.$queryRawUnsafe?.mockReset?.();
+      // DB ok, PostGIS ausente
+      // @ts-ignore
+      prisma.$queryRawUnsafe?.mockResolvedValueOnce?.([{ ok: 1 }])?.mockResolvedValueOnce?.([]);
+      const res = await request(app).get('/api/readyz').expect(503);
+      expect(res.body).toMatchObject({ success: false, error: 'readyz falhou' });
+    });
+
+    it('GET /api/readyz deve retornar 503 quando DB falha', async () => {
+      // @ts-ignore
+      prisma.$queryRawUnsafe?.mockReset?.();
+      // @ts-ignore
+      prisma.$queryRawUnsafe?.mockRejectedValue?.(new Error('DB down'));
+      const res = await request(app).get('/api/readyz').expect(503);
+      expect(res.body).toMatchObject({ success: false });
+    });
+  });
+
+  describe('GET /api/constants', () => {
+    it('deve retornar constantes públicas (sem auth)', async () => {
+      const res = await request(app).get('/api/constants').expect(200);
+      expect(res.body).toHaveProperty('cables');
+      expect(res.body).toHaveProperty('ipTypes');
+      expect(res.body).toHaveProperty('dmdiTables');
+      expect(res.body).toHaveProperty('profiles');
+    });
+  });
+
   describe('GET /api/projects', () => {
     it('should return 401 Unauthorized without a token', async () => {
-      await request(app).get('/api/projects').expect(401);
+      const res = await request(app).get('/api/projects').expect(401);
+      expect(res.body).toMatchObject({ success: false, error: 'Token não fornecido' });
     });
 
     it('should return 200 OK with a valid mock token', async () => {
-      await request(app)
+      const res = await request(app)
         .get('/api/projects')
         .set('Authorization', `Bearer ${authToken}`)
-        .expect(200)
-        .then(res => {
-          expect(res.body[0].id).toBe(mockProject.id);
-        });
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      expect(res.body[0].id).toBe(mockProject.id);
+      // Garante o filtro por ownership no backend
+      // @ts-ignore
+      expect(prisma.project.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: mockUser.id } }));
     });
   });
 
   describe('POST /api/projects', () => {
     it('should return 201 Created with valid data', async () => {
-      await request(app)
+      const res = await request(app)
         .post('/api/projects')
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ name: 'Valid Project', metadata: { sob: '123' }, userId: mockUser.id })
-        .expect(201);
+        .send(validProjectPayload);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ id: validProjectPayload.id, userId: mockUser.id });
+    });
+
+    it('deve retornar 400 para payload inválido (Zod)', async () => {
+      const res = await request(app)
+        .post('/api/projects')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ id: '', name: '' });
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ success: false, error: 'Dados inválidos.' });
+      expect(res.body.details).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('PUT /api/projects/:id', () => {
+    it('deve retornar 404 quando projeto não pertence ao usuário', async () => {
+      const res = await request(app)
+        .put('/api/projects/nao-existe')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: 'Novo nome' });
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: 'Projeto não encontrado.' });
+    });
+
+    it('deve retornar 400 para update inválido (Zod)', async () => {
+      const res = await request(app)
+        .put('/api/projects/prj-1')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ name: '' });
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ success: false, error: 'Dados inválidos.' });
     });
   });
 
@@ -97,6 +276,104 @@ describe('API Endpoint Tests', () => {
           .delete('/api/projects/prj-1')
           .set('Authorization', `Bearer ${authToken}`)
           .expect(204);
+    });
+
+    it('deve retornar 404 quando projeto não pertence ao usuário', async () => {
+      const res = await request(app)
+        .delete('/api/projects/nao-existe')
+        .set('Authorization', `Bearer ${authToken}`);
+      expect(res.status).toBe(404);
+      expect(res.body).toMatchObject({ error: 'Projeto não encontrado.' });
+    });
+  });
+
+  describe('POST /api/calculate', () => {
+    it('deve retornar 400 para payload inválido (Zod)', async () => {
+      const res = await request(app)
+        .post('/api/calculate')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ success: false, error: 'Dados inválidos.' });
+      expect(res.body.details).toBeInstanceOf(Array);
+    });
+
+    it('should accept partial loads and return 200', async () => {
+      await request(app)
+        .post('/api/calculate')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          scenarioId: 'SCN-1',
+          nodes: [
+            {
+              id: 'TRAFO',
+              parentId: '',
+              meters: 0,
+              cable: '3x95+54.6mm² Al',
+              loads: { mono: 0 }, // payload antigo/incompleto
+            },
+          ],
+          params: {
+            trafoKva: 75,
+            profile: 'Massivos',
+            classType: 'Automatic',
+            manualClass: 'B',
+            normativeTable: 'PRODIST',
+          },
+          cables: {
+            '3x95+54.6mm² Al': { r: 0.32, x: 0.08, coef: 0.0891, ampacity: 250 },
+          },
+          ips: { 'Sem IP': 0 },
+        })
+        .expect(200);
+    });
+  });
+
+  describe('GIS endpoints', () => {
+    it('GET /api/gis/nodes deve retornar 401 sem token', async () => {
+      const res = await request(app).get('/api/gis/nodes').expect(401);
+      expect(res.body).toMatchObject({ success: false });
+    });
+
+    it('GET /api/gis/nodes deve retornar FeatureCollection com token mock', async () => {
+      const res = await request(app)
+        .get('/api/gis/nodes')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(res.body).toMatchObject({ type: 'FeatureCollection' });
+      expect(Array.isArray(res.body.features)).toBe(true);
+      expect(res.body.features[0]).toMatchObject({
+        type: 'Feature',
+        id: 'node-1',
+        geometry: { type: 'Point' },
+        properties: { name: 'Nó 1', type: 'TRAFO' },
+      });
+    });
+
+    it('POST /api/gis/nodes deve retornar 400 para payload inválido (Zod)', async () => {
+      const res = await request(app)
+        .post('/api/gis/nodes')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ lat: 'x', lng: 1 })
+        .expect(400);
+      expect(res.body).toMatchObject({ success: false, error: 'Dados inválidos.' });
+      expect(res.body.details).toBeInstanceOf(Array);
+    });
+
+    it('POST /api/gis/nodes deve retornar 201 com token mock', async () => {
+      const res = await request(app)
+        .post('/api/gis/nodes')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          lat: -23.0,
+          lng: -43.0,
+          type: 'TRAFO',
+          name: 'Nó A',
+          properties: { area: 'teste' },
+        })
+        .expect(201);
+      expect(res.body).toMatchObject({ success: true });
     });
   });
 });

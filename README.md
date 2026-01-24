@@ -50,6 +50,8 @@ $$CQT = \sum (kVA \cdot L \cdot Coef_{cabo} \cdot 0.5)$$
 docker compose up --build
 ```
 
+Observação: o `docker-compose.yml` aplica o schema via **Prisma Migrations** (`prisma migrate deploy`) antes de subir a API.
+
 2) Acesse:
 
 - Frontend: `http://localhost:3000`
@@ -62,6 +64,20 @@ O banco sobe com scripts de init em `docker/db/init/` (executados **somente no p
 ```bash
 docker compose down -v
 docker compose up --build
+```
+
+### Trabalhando com migrations (Prisma)
+
+- Para criar uma nova migration após editar `prisma/schema.prisma`, rode localmente:
+
+```bash
+npx prisma migrate dev --name "<nome-da-migration>"
+```
+
+- Em produção/containers, o fluxo esperado é aplicar migrations com:
+
+```bash
+npm run migrate:deploy
 ```
 
 ---

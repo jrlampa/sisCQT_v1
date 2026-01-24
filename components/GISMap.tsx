@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useToast } from '../context/ToastContext';
+import { ApiError, ApiService } from '../services/apiService';
 
 // Importante: O CSS do Leaflet é carregado via <link> no index.html para evitar erros de ESM no navegador
 
@@ -39,12 +40,13 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
 
   const fetchNodes = async () => {
     try {
-      const response = await fetch('/api/gis/nodes');
-      if (!response.ok) throw new Error("Erro ao buscar nós");
-      const data = await response.json();
+      const data = await ApiService.getGisNodes();
       setGeoData(data);
     } catch (err) {
       console.error(err);
+      if (err instanceof ApiError && err.status === 401) {
+        showToast("Sessão expirada. Faça login novamente.", "error");
+      }
       // Fallback para não quebrar a UI se a API ainda não estiver pronta
       setGeoData({ type: "FeatureCollection", features: [] });
     } finally {
@@ -63,26 +65,22 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
     const type = confirm("É um Transformador? (Cancelar para Poste)") ? 'TRAFO' : 'POSTE';
 
     try {
-      const response = await fetch('/api/gis/nodes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lat, lng,
-          name,
-          type,
-          properties: { status: 'ativo', tension: 'BT' }
-        })
+      await ApiService.createGisNode({
+        lat,
+        lng,
+        name,
+        type,
+        properties: { status: 'ativo', tension: 'BT' },
       });
-
-      if (response.ok) {
-        showToast(`${type} criado com sucesso!`, "success");
-        fetchNodes();
-        if (onNodeCreated) onNodeCreated();
-      } else {
-        throw new Error("Falha na persistência");
-      }
+      showToast(`${type} criado com sucesso!`, "success");
+      fetchNodes();
+      if (onNodeCreated) onNodeCreated();
     } catch (err) {
-      showToast("Erro ao salvar nó. Verifique a conexão com o banco.", "error");
+      if (err instanceof ApiError && err.status === 401) {
+        showToast("Sessão expirada. Faça login novamente.", "error");
+      } else {
+        showToast("Erro ao salvar nó. Verifique a conexão com o banco.", "error");
+      }
     }
   };
 
