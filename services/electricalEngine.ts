@@ -181,8 +181,12 @@ export class ElectricalEngine {
     calculatePhysics(trafoNode, 0, 0);
 
     // 5. Métricas de Sustentabilidade
+    const energyPriceBrlKwh =
+      typeof (params as any)?.energyPriceBrlKwh === 'number' && Number.isFinite((params as any).energyPriceBrlKwh) && (params as any).energyPriceBrlKwh > 0
+        ? Number((params as any).energyPriceBrlKwh)
+        : ElectricalEngine.ENERGY_PRICE_BRL;
     const annualEnergyLossKwh = (totalJouleLossWatts / 1000) * 8760 * ElectricalEngine.LOAD_LOSS_FACTOR;
-    const annualFinancialLossBrl = annualEnergyLossKwh * ElectricalEngine.ENERGY_PRICE_BRL;
+    const annualFinancialLossBrl = annualEnergyLossKwh * energyPriceBrlKwh;
     const annualCo2Kg = annualEnergyLossKwh * ElectricalEngine.CO2_FACTOR_KG_KWH;
 
     return {

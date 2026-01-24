@@ -29,6 +29,7 @@ export const ProjectParamsSchema = z.object({
   manualClass: z.enum(['A', 'B', 'C', 'D']),
   normativeTable: z.string().min(1),
   includeGdInQt: z.boolean().optional(),
+  energyPriceBrlKwh: z.coerce.number().min(0).max(50).optional(),
 });
 
 export const ScenarioSchema = z.object({

@@ -1,8 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Project, ReportConfig } from '../types';
 import { useProject } from '../context/ProjectContext';
 import { useToast } from '../context/ToastContext';
+
+const ENERGY_PRICE_STORAGE_KEY = 'sisqat_energy_price_brl_kwh';
+const DEFAULT_ENERGY_PRICE_BRL_KWH = 0.85;
 
 const Settings: React.FC = () => {
   const { project, updateProject } = useProject();
@@ -12,6 +15,43 @@ const Settings: React.FC = () => {
     return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Configurações...</div>;
   }
   const [isSendingLogs, setIsSendingLogs] = useState(false);
+  const [energyPriceInput, setEnergyPriceInput] = useState<string>(() => {
+    try {
+      const raw = localStorage.getItem(ENERGY_PRICE_STORAGE_KEY);
+      if (!raw) return String(DEFAULT_ENERGY_PRICE_BRL_KWH).replace('.', ',');
+      return String(raw).replace('.', ',');
+    } catch {
+      return String(DEFAULT_ENERGY_PRICE_BRL_KWH).replace('.', ',');
+    }
+  });
+
+  const parsedEnergyPrice = useMemo(() => {
+    const n = Number(String(energyPriceInput).replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
+  }, [energyPriceInput]);
+
+  const applyEnergyPriceToProject = () => {
+    if (!parsedEnergyPrice) {
+      showToast('Informe um custo válido (ex.: 1,10).', 'warning');
+      return;
+    }
+    try {
+      localStorage.setItem(ENERGY_PRICE_STORAGE_KEY, String(parsedEnergyPrice));
+    } catch {}
+
+    updateProject({
+      scenarios: project.scenarios.map((s) => ({
+        ...s,
+        params: {
+          ...s.params,
+          energyPriceBrlKwh: parsedEnergyPrice,
+        },
+        updatedAt: new Date().toISOString(),
+      })),
+    });
+    showToast(`Custo padrão do kWh atualizado para R$ ${parsedEnergyPrice.toFixed(2).replace('.', ',')}.`, 'success');
+  };
 
   const handleDeleteCable = (name: string) => {
     if (window.confirm(`Tem certeza que deseja apagar o cabo "${name}"? Esta ação não pode ser desfeita.`)) {
@@ -59,6 +99,40 @@ const Settings: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Parâmetros de Sustentabilidade */}
+        <section className="glass-dark rounded-[32px] p-8 border border-white/50 shadow-sm lg:col-span-2">
+          <h3 className="font-bold text-gray-700 text-sm uppercase tracking-widest mb-6 flex items-center gap-2">
+            <span className="w-1.5 h-4 bg-green-500 rounded-full"></span>
+            🌿 Parâmetros de Sustentabilidade
+          </h3>
+          <div className="flex flex-col md:flex-row gap-4 md:items-end">
+            <div className="flex flex-col gap-2">
+              <label htmlFor="energy-price" className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">
+                Custo padrão do kWh (R$/kWh)
+              </label>
+              <input
+                id="energy-price"
+                aria-label="Custo padrão do kWh (R$/kWh)"
+                inputMode="decimal"
+                className="w-48 bg-white/60 border border-green-100 rounded-2xl px-5 py-4 text-sm font-black outline-none focus:border-green-300 transition-all"
+                value={energyPriceInput}
+                onChange={(e) => setEnergyPriceInput(e.target.value)}
+              />
+              <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                Exemplo: consumidor RJ ~ 1,10
+              </span>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={applyEnergyPriceToProject}
+                className="px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest bg-green-600 text-white hover:bg-green-700 transition-all shadow-lg shadow-green-100"
+              >
+                Aplicar no projeto
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Gestão de Condutores */}
         <section className="glass-dark rounded-[32px] p-8 border border-white/50 shadow-sm">
           <div className="flex justify-between items-center mb-6">
@@ -147,6 +221,8 @@ const Settings: React.FC = () => {
                    <p className="text-xs font-black text-gray-800">{type}</p>
                    <input 
                     type="number" step="0.01" 
+                    aria-label={`Consumo unitário (${type}) em kVA`}
+                    title={`Consumo unitário (${type}) em kVA`}
                     className="bg-transparent border-b border-yellow-200 outline-none text-[11px] font-bold text-blue-600 focus:border-blue-500 transition-all" 
                     value={kva}
                     onChange={(e) => {
