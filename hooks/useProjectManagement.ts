@@ -51,9 +51,12 @@ export function useProjectManagement() {
 
   const updateProject = useCallback((updates: Partial<Project>) => {
     if (!currentProjectId) return;
-    const updated = { ...savedProjects[currentProjectId], ...updates, updatedAt: new Date().toISOString() };
+    const projectToUpdate = savedProjects[currentProjectId];
+    if (!projectToUpdate) return;
+    
+    const updated = { ...projectToUpdate, ...updates, updatedAt: new Date().toISOString() };
     setSavedProjects(prev => ({ ...prev, [currentProjectId]: updated }));
-    ApiService.saveProject(updated); // Persistência imediata no Backend
+    ApiService.updateProject(currentProjectId, updates); // Use PUT for updates
   }, [currentProjectId, savedProjects]);
 
   const updateActiveScenario = useCallback((updates: Partial<Scenario>) => {
@@ -70,7 +73,7 @@ export function useProjectManagement() {
     createProject: (name: string, sob: string, pe: string, lat: number, lng: number) => {
       const n = createTemplateProject(name, sob, pe, lat, lng);
       setSavedProjects(p => ({ ...p, [n.id]: n }));
-      ApiService.saveProject(n);
+      ApiService.createProject(n); // Use POST for creation
       return n.id;
     },
     // Add missing method to duplicate an entire project
@@ -85,7 +88,7 @@ export function useProjectManagement() {
         updatedAt: new Date().toISOString() 
       };
       setSavedProjects(p => ({ ...p, [newId]: newPrj }));
-      ApiService.saveProject(newPrj);
+      ApiService.createProject(newPrj); // Duplication is a form of creation
     },
     deleteProject: async (id: string) => {
       await ApiService.deleteProject(id);

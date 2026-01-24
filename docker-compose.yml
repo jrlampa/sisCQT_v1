@@ -18,6 +18,9 @@ services:
       # GEMINI_API_KEY=AIzaSy...
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - ENABLE_MOCK_AUTH=true
+      - MSAL_JWKS_URI=https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31/discovery/v2.0/keys
+      - MSAL_AUDIENCE=df5b2c78-c26b-47ae-aa8c-86dab74752fb
+      - MSAL_ISSUER=https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31/v2.0
     volumes:
       - .:/app # Sincroniza a tua pasta local com o Docker (Hot Reload)
       - /app/node_modules # Evita apagar os módulos dentro do Docker

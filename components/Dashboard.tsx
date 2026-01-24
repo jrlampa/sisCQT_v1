@@ -19,7 +19,7 @@ const Dashboard: React.FC = () => {
     { label: 'Carga Trafo', value: `${result.kpis.trafoOccupation.toFixed(1)}%`, icon: '🏬', status: result.kpis.trafoOccupation > 100 ? 'critical' : 'ok' },
     { label: 'Queda de Tensão', value: `${result.kpis.maxCqt.toFixed(2)}%`, icon: '📉', status: result.kpis.maxCqt > 6 ? 'warning' : 'ok' },
     { label: 'Potência Total', value: `${result.kpis.totalLoad.toFixed(1)} kVA`, icon: '⚡', status: 'neutral' },
-    { label: 'Consumidores', value: result.kpis.totalCustomers, icon: '🏠', status: 'neutral' },
+    { label: 'Consumidores', value: String(result.kpis.totalCustomers), icon: '🏠', status: 'neutral' },
     { label: 'Emissão CO2', value: `${result.sustainability.annualCo2Kg.toFixed(0)} kg`, icon: '🌿', status: 'positive' }
   ];
 

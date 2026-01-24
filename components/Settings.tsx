@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { Project, ReportConfig } from '../types';
 import { useProject } from '../context/ProjectContext';
+import { useToast } from '../context/ToastContext';
 
 const Settings: React.FC = () => {
   const { project, updateProject } = useProject();
+  const { showToast } = useToast();
 
   if (!project) {
     return <div className="p-8 text-center animate-pulse text-[10px] font-black uppercase text-blue-500">Carregando Configurações...</div>;
@@ -12,30 +14,42 @@ const Settings: React.FC = () => {
   const [isSendingLogs, setIsSendingLogs] = useState(false);
 
   const handleDeleteCable = (name: string) => {
-    const newCables = { ...project.cables };
-    delete newCables[name];
-    updateProject({ cables: newCables });
+    if (window.confirm(`Tem certeza que deseja apagar o cabo "${name}"? Esta ação não pode ser desfeita.`)) {
+      const newCables = { ...project.cables };
+      delete newCables[name];
+      updateProject({ cables: newCables });
+      showToast(`Cabo ${name} removido.`, 'info');
+    }
   };
 
   const handleSendLogs = () => {
     setIsSendingLogs(true);
     
-    // Simulação de coleta de logs
     const logData = {
       project: project.name,
-      sob: project.metadata.sob,
+      sob: project.metadata?.sob || 'N/A',
       scenarioCount: project.scenarios.length,
       timestamp: new Date().toISOString(),
       userAgent: navigator.userAgent
     };
 
-    const mailtoLink = `mailto:jonatas.lampa@im3brasil.com.br?subject=LOG DE ERRO - sisCQT - SOB ${project.metadata.sob}&body=Olá Jonatas,%0D%0A%0D%0ASegue log técnico para análise de erro no sistema:%0D%0A%0D%0A${encodeURIComponent(JSON.stringify(logData, null, 2))}`;
+    const mailtoLink = `mailto:jonatas.lampa@im3brasil.com.br?subject=LOG DE ERRO - sisCQT - SOB ${project.metadata?.sob || 'N/A'}&body=Olá Jonatas,%0D%0A%0D%0ASegue log técnico para análise de erro no sistema:%0D%0A%0D%0A${encodeURIComponent(JSON.stringify(logData, null, 2))}`;
     
     setTimeout(() => {
       window.location.href = mailtoLink;
       setIsSendingLogs(false);
     }, 800);
   };
+  
+  const reportItems: { id: keyof ReportConfig; label: string }[] = [
+    { id: 'showJustification', label: 'Justificativa de Engenharia' },
+    { id: 'showUnifilar', label: 'Incluir Diagrama Unifilar' },
+    { id: 'showKpis', label: 'Quadro de Resultados Consolidados' },
+    { id: 'showComparison', label: 'Resumo Comparativo de Cenários' },
+    { id: 'showTopology', label: 'Tabela de Topologia e Fluxos' },
+    { id: 'showMaterials', label: 'Resumo Estimado de Materiais' },
+    { id: 'showSignatures', label: 'Campos de Assinatura e Rodapé' }
+  ];
 
   return (
     <div className="flex flex-col gap-8 animate-in slide-in-from-right-4 duration-500 pb-20">
@@ -52,7 +66,7 @@ const Settings: React.FC = () => {
               <span className="w-1.5 h-4 bg-blue-600 rounded-full"></span>
               🏗️ Catálogo de Condutores
             </h3>
-            <button className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">+ Novo Cabo</button>
+            <button onClick={() => showToast("Função não implementada.", "warning")} className="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-[10px] font-black hover:bg-blue-700 transition-colors shadow-lg shadow-blue-100">+ Novo Cabo</button>
           </div>
           <div className="flex flex-col gap-3">
             {(Object.entries(project.cables) as [string, { r: number, x: number, coef: number, ampacity: number }][]).map(([name, data]) => (
@@ -62,7 +76,7 @@ const Settings: React.FC = () => {
                   <p className="text-[9px] text-gray-400 font-bold uppercase">Ampacidade: {data.ampacity}A | Coef: {data.coef}</p>
                 </div>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="text-blue-600 font-black text-[10px] bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-100">EDIT</button>
+                  <button onClick={() => showToast("Função não implementada.", "warning")} className="text-blue-600 font-black text-[10px] bg-blue-50 px-3 py-1 rounded-lg hover:bg-blue-100">EDIT</button>
                   <button onClick={() => handleDeleteCable(name)} className="text-red-500 font-black text-[10px] bg-red-50 px-3 py-1 rounded-lg hover:bg-red-100">DELETE</button>
                 </div>
               </div>
@@ -77,20 +91,12 @@ const Settings: React.FC = () => {
             📄 Opções do Memorial
           </h3>
           <div className="flex flex-col gap-4">
-             {[
-               { id: 'showJustification', label: 'Justificativa de Engenharia' },
-               { id: 'showUnifilar', label: 'Incluir Diagrama Unifilar' },
-               { id: 'showKpis', label: 'Quadro de Resultados Consolidados' },
-               { id: 'showComparison', label: 'Resumo Comparativo de Cenários' }, // Novo item
-               { id: 'showTopology', label: 'Tabela de Topologia e Fluxos' },
-               { id: 'showMaterials', label: 'Resumo Estimado de Materiais' },
-               { id: 'showSignatures', label: 'Campos de Assinatura e Rodapé' }
-             ].map(item => (
+             {reportItems.map(item => (
                <label key={item.id} className="flex items-center gap-4 cursor-pointer p-3 rounded-xl hover:bg-white/40 transition-all border border-transparent hover:border-white/80">
                  <input 
                    type="checkbox" 
                    className="w-5 h-5 rounded-lg border-2 border-blue-200 text-blue-600 focus:ring-blue-500"
-                   checked={(project.reportConfig as any)[item.id]}
+                   checked={project.reportConfig[item.id]}
                    onChange={(e) => updateProject({ reportConfig: { ...project.reportConfig, [item.id]: e.target.checked } })}
                  />
                  <span className="text-sm font-bold text-gray-600">{item.label}</span>

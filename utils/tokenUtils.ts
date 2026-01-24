@@ -2,7 +2,13 @@ import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 
 // URL de descoberta de chaves do Microsoft Entra ID para o seu tenant
-const jwksUri = 'https://login.microsoftonline.com/c580bd4a-fb89-4bde-b6ae-715befa1ab31/discovery/v2.0/keys';
+const jwksUri = process.env.MSAL_JWKS_URI;
+const audience = process.env.MSAL_AUDIENCE;
+const issuer = process.env.MSAL_ISSUER;
+
+if (!jwksUri || !audience || !issuer) {
+  throw new Error('As variáveis de ambiente MSAL_JWKS_URI, MSAL_AUDIENCE e MSAL_ISSUER devem ser configuradas.');
+}
 
 const client = jwksClient({
   jwksUri: jwksUri,

@@ -147,6 +147,7 @@ const App: React.FC = () => {
               user={currentUser!}
               onLogout={handleLogout}
               onBilling={() => navigate('/billing')}
+              onSelectProject={(id) => navigate(`/project/${id}`)}
             />
           } />
           <Route path="/billing" element={

@@ -62,7 +62,7 @@ const Layout: React.FC<LayoutProps> = ({ children, project, user, onSwitchScenar
 
         <div className="mt-auto pt-6 border-t border-white/40 flex flex-col gap-3">
           <div className="flex items-center gap-3 p-4 bg-white/30 rounded-3xl border border-white/60">
-             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-sm font-black text-blue-600 uppercase">{user.name.charAt(0)}</div>
+             <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-sm font-black text-blue-600 uppercase">{(user.name || '?').charAt(0)}</div>
              {!isCollapsed && (
                <div className="flex flex-col overflow-hidden">
                  <span className="text-xs font-black text-slate-800 truncate">{user.name}</span>

@@ -36,7 +36,7 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
     }
   ];
 
-  const handleUpgrade = (planId: any) => {
+  const handleUpgrade = (planId: User['plan']) => {
     if (confirm(`Confirmar upgrade para o plano ${planId}?`)) {
       onUpdatePlan(planId);
     }

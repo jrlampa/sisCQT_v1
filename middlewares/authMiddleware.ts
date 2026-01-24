@@ -11,17 +11,22 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
 
   // MODO DE TESTE / DESENVOLVIMENTO
   if (process.env.ENABLE_MOCK_AUTH === 'true' && authHeader === 'Bearer dev-token-im3') {
-    const testEmail = 'teste@im3brasil.com.br';
-    const user = await prisma.user.upsert({
-      where: { email: testEmail },
-      update: {},
-      create: {
-        email: testEmail,
-        name: 'Desenvolvedor Local',
-      }
-    });
-    (req as any).user = user;
-    return next();
+    try {
+      const testEmail = 'teste@im3brasil.com.br';
+      const user = await prisma.user.upsert({
+        where: { email: testEmail },
+        update: {},
+        create: {
+          email: testEmail,
+          name: 'Desenvolvedor Local',
+        }
+      });
+      (req as any).user = user;
+      return next();
+    } catch (dbError) {
+      console.error("Mock Auth DB Error:", dbError);
+      return (res as any).status(500).json({ error: 'Erro de banco de dados no modo de autenticação mock.' });
+    }
   }
 
   // MODO PRODUÇÃO (MICROSOFT ENTRA ID)

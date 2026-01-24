@@ -62,9 +62,16 @@ export class ApiService {
     return (list || []).reduce((acc, p) => ({ ...acc, [p.id]: p }), {});
   }
 
-  static async saveProject(project: Project): Promise<void> {
-    await this.request('/projects', {
+  static async createProject(project: Project): Promise<Project> {
+    return this.request('/projects', {
       method: 'POST',
+      body: JSON.stringify(project)
+    });
+  }
+
+  static async updateProject(id: string, project: Partial<Project>): Promise<Project> {
+    return this.request(`/projects/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(project)
     });
   }

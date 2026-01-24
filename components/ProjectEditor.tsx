@@ -263,16 +263,32 @@ const ProjectEditor: React.FC = () => {
   }, [currentProjectAndScenario.nodes, updateActiveScenario, showToast]);
 
   const handleAddNode = () => {
-    const nextId = (Math.max(...currentProjectAndScenario.nodes.map(n => parseInt(n.id) || 0)) + 1).toString();
-    const parentId = currentProjectAndScenario.nodes[currentProjectAndScenario.nodes.length - 1].id;
+    const allNodes = currentProjectAndScenario.nodes;
+    let maxNumericId = 0;
+    allNodes.forEach(n => {
+        const numericId = parseInt(n.id.replace(/[^0-9]/g, ''));
+        if (!isNaN(numericId) && numericId > maxNumericId) {
+            maxNumericId = numericId;
+        }
+    });
+    const nextId = `P-${maxNumericId + 1}`;
+    
+    const parentId = allNodes.length > 0 ? allNodes[allNodes.length - 1].id : 'TRAFO';
+    
+    if (allNodes.length === 0 && parentId !== 'TRAFO') {
+        showToast("É necessário um TRAFO para iniciar a rede.", "error");
+        return;
+    }
+
     const newNode: NetworkNode = {
       id: nextId,
       parentId,
       meters: 30,
-      cable: currentProjectAndScenario.nodes[0].cable,
+      cable: allNodes.length > 0 ? allNodes[0].cable : Object.keys(project.cables)[0],
       loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 }
     };
-    updateActiveScenario({ nodes: [...currentProjectAndScenario.nodes, newNode] });
+
+    updateActiveScenario({ nodes: [...allNodes, newNode] });
     showToast(`Ponto ${nextId} adicionado.`);
   };
 

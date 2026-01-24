@@ -39,7 +39,7 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
 
   const fetchNodes = async () => {
     try {
-      const response = await fetch('/api/nodes');
+      const response = await fetch('/api/gis/nodes');
       if (!response.ok) throw new Error("Erro ao buscar nós");
       const data = await response.json();
       setGeoData(data);
@@ -63,7 +63,7 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
     const type = confirm("É um Transformador? (Cancelar para Poste)") ? 'TRAFO' : 'POSTE';
 
     try {
-      const response = await fetch('/api/nodes', {
+      const response = await fetch('/api/gis/nodes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

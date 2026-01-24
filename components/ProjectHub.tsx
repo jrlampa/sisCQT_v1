@@ -4,7 +4,7 @@ import { useToast } from '../context/ToastContext.tsx';
 import { KmlService } from '../services/kmlService';
 import { useProject } from '../context/ProjectContext';
 
-const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => void; }> = ({ user, onLogout, onBilling }) => {
+const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => void; onSelectProject: (id: string) => void; }> = ({ user, onLogout, onBilling, onSelectProject }) => {
   const { showToast } = useToast();
   const { savedProjects, createProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
 
@@ -32,7 +32,7 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
 
   const handleSelectProject = (projectId: string) => {
     setCurrentProjectId(projectId);
-    // A navegação será tratada pelo efeito no App.tsx
+    onSelectProject(projectId);
   };
 
   const handleDeleteProject = (projectId: string) => {

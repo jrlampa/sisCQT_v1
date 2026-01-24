@@ -31,3 +31,17 @@ model Project {
   user             User     @relation(fields: [userId], references: [id])
   userId           String
 }
+
+enum NodeType {
+  TRAFO
+  POSTE
+}
+
+model NetworkNode {
+  id         String    @id @default(uuid())
+  name       String
+  type       NodeType
+  location   Unsupported("geometry")
+  properties Json?
+  createdAt  DateTime  @default(now())
+}
