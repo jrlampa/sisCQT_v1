@@ -1,0 +1,47 @@
+options:
+  # Evita erro quando `build.service_account` é definido no trigger.
+  logging: CLOUD_LOGGING_ONLY
+  # Permite triggers com substitutions extras sem falhar.
+  substitutionOption: ALLOW_LOOSE
+
+substitutions:
+  _REGION: us-west1
+  _SERVICE: siscqt-enterprise-ai
+  # Ajuste para o seu Artifact Registry (repo `siscqt` no exemplo).
+  _IMAGE: us-west1-docker.pkg.dev/$PROJECT_ID/siscqt/siscqt-enterprise-ai:$SHORT_SHA
+  # Se quiser deploy automático, defina _DEPLOY=true no trigger.
+  _DEPLOY: "false"
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --target
+      - prod
+      - -t
+      - $_IMAGE
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - $_IMAGE
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        if [[ "${_DEPLOY}" != "true" ]]; then
+          echo "Skip deploy (set _DEPLOY=true no trigger para habilitar)."
+          exit 0
+        fi
+        gcloud run deploy "${_SERVICE}" \
+          --image "${_IMAGE}" \
+          --region "${_REGION}" \
+          --platform managed \
+          --quiet
+
+images:
+  - $_IMAGE
+
