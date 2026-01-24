@@ -6,7 +6,7 @@ import { useProject } from '../context/ProjectContext';
 
 const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => void; onSelectProject: (id: string) => void; }> = ({ user, onLogout, onBilling, onSelectProject }) => {
   const { showToast } = useToast();
-  const { savedProjects, createProject, createWelcomeProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
+  const { savedProjects, createProject, importXlsxProject, createWelcomeProject, updateProject, deleteProject, duplicateProject, setCurrentProjectId } = useProject();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -204,19 +204,29 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
         </div>
       )}
       
-      <input aria-label="Importar arquivo KML/KMZ" type="file" ref={fileInputRef} className="hidden" accept=".kml,.kmz" onChange={async (e) => {
+      <input aria-label="Importar arquivo KML/KMZ/XLSX" type="file" ref={fileInputRef} className="hidden" accept=".kml,.kmz,.xlsx" onChange={async (e) => {
         const file = e.target.files?.[0];
         if (file) {
           setIsImporting(true);
           try {
-            const data = await KmlService.parseFile(file);
-            await createProject(file.name, 'KML.' + Math.floor(Math.random()*1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
-            showToast("Importação KML concluída!", "success");
+            const lower = file.name.toLowerCase();
+            if (lower.endsWith('.xlsx')) {
+              const id = await importXlsxProject(file);
+              showToast("Importação XLSX concluída!", "success");
+              setCurrentProjectId(id);
+              onSelectProject(id);
+            } else {
+              const data = await KmlService.parseFile(file);
+              await createProject(file.name, 'KML.' + Math.floor(Math.random() * 1000), 'BT-IMP', data.metadata.lat || -22.9, data.metadata.lng || -43.1);
+              showToast("Importação KML concluída!", "success");
+            }
           } catch(err: any) {
             showToast(err?.message || "Falha no KML", "error");
           }
           finally { setIsImporting(false); }
         }
+        // permite reimportar o mesmo arquivo sem precisar recarregar a página
+        try { (e.target as any).value = ''; } catch {}
       }} />
     </div>
   );

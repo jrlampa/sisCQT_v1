@@ -34,8 +34,12 @@ export class ApiService {
 
   private static async request<T>(path: string, options?: RequestInit): Promise<T> {
     const token = localStorage.getItem(TOKEN_KEY);
+    const isFormData =
+      typeof FormData !== 'undefined' &&
+      options?.body !== undefined &&
+      options.body instanceof FormData;
     const headers: HeadersInit = {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...options?.headers,
     };
 
@@ -157,6 +161,20 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  }
+
+  static async importXlsx(file: File, name?: string): Promise<{ projectId: string; project: Project; debug?: any }> {
+    const fd = new FormData();
+    fd.append('file', file, file.name);
+    if (name) fd.append('name', name);
+
+    return this.request<{ projectId: string; project: Project; debug?: any }>('/import/xlsx', {
+      method: 'POST',
+      body: fd as any,
+      // imports podem demorar dependendo do tamanho do XLSX
+      // @ts-ignore
+      timeoutMs: 60000,
+    } as any);
   }
 
   static async runMonteCarlo(payload: {

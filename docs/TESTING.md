@@ -13,6 +13,9 @@ Inclui também:
 
 - **Otimização**: testes do `POST /api/optimize` (liga na lógica real).
 - **Monte Carlo**: testes do `POST /api/montecarlo` (determinístico com `seed`) e fluxo E2E do botão “Rodar Simulação”.
+- **XLSX real (import + verificação)**:
+  - Importação via `POST /api/import/xlsx` (usado pelo botão “Importar” no Hub).
+  - Verificação local (sem commitar o arquivo) comparando a **carga diversificada por trecho** (`TOTAL` do XLSX) vs `nodeDistributedKva` do Engine.
 
 ## Comandos
 
@@ -38,6 +41,33 @@ npm run test:e2e
 
 ```bash
 npm run test:e2e:ui
+```
+
+## XLSX real (sem versionar)
+
+O arquivo `PD_A052989936_CQT REAL.xlsx` **não deve ser commitado**. Ele é ignorado no `.gitignore`.
+
+Você pode usar de duas formas:
+
+- **Colocar na raiz do repo**: `./PD_A052989936_CQT REAL.xlsx`
+- **Ou apontar um caminho absoluto** via env:
+
+```powershell
+$env:REAL_XLSX_PATH="C:\\caminho\\para\\PD_A052989936_CQT REAL.xlsx"
+```
+
+### Rodar verificação
+
+- Script dedicado (local):
+
+```bash
+npm run verify:xlsx-real
+```
+
+- Ou rodando unit tests (o teste real só executa quando o arquivo existir):
+
+```bash
+npm run test:unit
 ```
 
 ## Snapshots visuais

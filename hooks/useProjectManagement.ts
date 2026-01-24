@@ -136,6 +136,12 @@ export function useProjectManagement() {
       ApiService.createProject(n); // Use POST for creation
       return n.id;
     },
+    importXlsxProject: async (file: File) => {
+      showToast('Importando XLSX...', 'info');
+      const { project: prj } = await ApiService.importXlsx(file);
+      setSavedProjects((p) => ({ ...p, [prj.id]: prj }));
+      return prj.id;
+    },
     createWelcomeProject: async () => {
       const c = serverConstants ?? (await ApiService.getConstants());
       const prj = createWelcomeProject({ cables: c.cables, ipTypes: c.ipTypes });

@@ -11,6 +11,7 @@ import { engineRoutes } from './routes/engineRoutes.js';
 import { geminiRoutes } from './routes/geminiRoutes.js';
 import { gisRoutes } from './routes/gisRoutes.js';
 import { healthRoutes } from './routes/healthRoutes.js';
+import { importRoutes } from './routes/importRoutes.js';
 import { authMiddleware } from './middlewares/authMiddleware.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { assertProdAuthConfig } from './utils/tokenUtils.js';
@@ -112,6 +113,7 @@ app.use('/api/projects', authMiddleware as any, projectRoutes);
 app.use('/api', engineRoutes);
 app.use('/api/gemini', geminiRoutes);
 app.use('/api/gis', gisRoutes);
+app.use('/api/import', authMiddleware as any, importRoutes);
 
 // Static files handling
 // Em dev, `__dirname` aponta para a raiz do repo; em prod, para `dist/server`.

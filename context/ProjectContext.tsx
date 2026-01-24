@@ -22,6 +22,7 @@ interface ProjectContextType {
   isCalculating: boolean;
   setCurrentProjectId: (id: string | null) => void;
   createProject: (name: string, sob: string, pe: string, lat: number, lng: number) => Promise<string>;
+  importXlsxProject: (file: File) => Promise<string>;
   createWelcomeProject: () => Promise<string>;
   duplicateProject: (id: string) => void;
   deleteProject: (id: string) => Promise<void>;
@@ -62,6 +63,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     isCalculating: pm.isCalculating,
     setCurrentProjectId: pm.setCurrentProjectId,
     createProject: pm.createProject,
+    importXlsxProject: (pm as any).importXlsxProject,
     createWelcomeProject: (pm as any).createWelcomeProject,
     duplicateProject: pm.duplicateProject,
     deleteProject: pm.deleteProject,
