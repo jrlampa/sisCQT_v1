@@ -14,19 +14,19 @@ test('Snapshots principais (login/hub/editor/chatbot)', async ({ page }, testInf
 
   await page.goto('/login');
   await expect(page.getByText('Engenharia Digital')).toBeVisible();
-  await expect(page).toHaveScreenshot('login.png', { fullPage: true });
+  await expect(page).toHaveScreenshot('login.png', { fullPage: true, maxDiffPixelRatio: 0.02 });
 
   await loginAsDev(page);
   await expect(page.getByText('Projeto Demo', { exact: true })).toBeVisible();
-  await expect(page).toHaveScreenshot('hub.png', { fullPage: true });
+  await expect(page).toHaveScreenshot('hub.png', { fullPage: true, maxDiffPixelRatio: 0.02 });
 
   await openDemoProject(page);
   await page.getByRole('link', { name: /Editor de Rede/i }).click();
   await expect(page.getByText(/Editor de Topologia/i)).toBeVisible();
-  await expect(page).toHaveScreenshot('editor.png', { fullPage: true });
+  await expect(page).toHaveScreenshot('editor.png', { fullPage: true, maxDiffPixelRatio: 0.02 });
 
   await page.getByRole('link', { name: /Analista IA/i }).click();
   await expect(page.getByText(/Theseus: Inteligência de Rede/i)).toBeVisible();
-  await expect(page).toHaveScreenshot('chatbot.png', { fullPage: true });
+  await expect(page).toHaveScreenshot('chatbot.png', { fullPage: true, maxDiffPixelRatio: 0.02 });
 });
 

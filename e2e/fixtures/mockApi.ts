@@ -219,6 +219,17 @@ export async function installMockApi(page: Page) {
       const body = readJsonBody(request) || {};
       return json(route, 200, Array.isArray(body.nodes) ? body.nodes : []);
     }
+    if (pathname === '/api/montecarlo' && method === 'POST') {
+      if (!hasAuth(request)) return json(route, 401, { success: false, error: 'Token não fornecido' });
+      // determinístico para testes de UI
+      return json(route, 200, {
+        stabilityIndex: 0.93,
+        failureRisk: 0.03,
+        avgMaxCqt: 3.92,
+        p95Cqt: 5.12,
+        distribution: Array.from({ length: 20 }, (_, i) => ({ x: i + 1, y: i === 10 ? 50 : 5 })),
+      });
+    }
 
     // Gemini (requires auth)
     if (pathname === '/api/gemini/ask' && method === 'POST') {

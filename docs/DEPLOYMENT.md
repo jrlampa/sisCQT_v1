@@ -1,13 +1,18 @@
-## Deploy (Cloud Run / Azure App Service)
+# Deploy (Cloud Run / Azure App Service)
 
-### Objetivo
+## Objetivo
 
 - **Single container** servindo:
   - SPA (build Vite) em `dist/client`
   - API (Express) em `dist/server`
 - Porta: `PORT` (padrão `8080`)
 
-### Scripts (package.json)
+## Segredos/variáveis
+
+- **Nunca** versione `.env` com segredos.
+- Para DEV com Docker Compose, use `.env` (copie de `\.env.example`).
+
+## Scripts (package.json)
 
 - **Build completo**: `npm run build`
   - `build:client` → `dist/client`
@@ -16,7 +21,7 @@
 - **Start produção + migrations**: `npm run start:prod:migrate`
 - **Aplicar migrations**: `npm run migrate:deploy`
 
-### Dockerfile (multi-stage)
+## Dockerfile (multi-stage)
 
 O `Dockerfile` possui targets:
 
@@ -42,7 +47,7 @@ docker run --rm -p 8080:8080 ^
   siscqt:prod
 ```
 
-### Migrations no startup
+## Migrations no startup
 
 O `CMD` da imagem prod aceita:
 
@@ -61,15 +66,14 @@ docker run --rm -p 8080:8080 ^
   siscqt:prod
 ```
 
-### Cloud Run
+## Cloud Run
 
 - Configure variáveis de ambiente (Auth + DB).
 - Configure **health check** apontando para `GET /api/healthz`.
 - Para readiness, use `GET /api/readyz`.
 
-### Azure App Service (container)
+## Azure App Service (container)
 
 - Configure `PORT=8080` (ou a porta exigida pelo ambiente).
 - Configure variáveis de ambiente (Auth + DB).
 - Use `GET /api/healthz` e `GET /api/readyz` para monitoramento.
-

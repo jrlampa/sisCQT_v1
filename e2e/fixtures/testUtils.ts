@@ -4,6 +4,15 @@ import { installMockApi } from './mockApi';
 export async function setupUiTest(page: Page) {
   await installMockApi(page);
 
+  // Evita que o Hub crie automaticamente o projeto WELCOME durante testes (flaky / muda URL).
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('sisqat_welcome_project_created', 'true');
+    } catch {
+      // ignore
+    }
+  });
+
   // Desabilita animações/transições para snapshots estáveis
   await page.addStyleTag({
     content: `

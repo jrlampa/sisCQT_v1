@@ -1,6 +1,6 @@
-## Banco de dados (Postgres + PostGIS) e Prisma
+# Banco de dados (Postgres + PostGIS) e Prisma
 
-### Requisitos
+## Requisitos
 
 - PostgreSQL
 - Extensões:
@@ -11,7 +11,7 @@ Em desenvolvimento via Docker, as extensões são criadas por:
 
 - `docker/db/init/01-extensions.sql`
 
-### Prisma: migrations (produção)
+## Prisma: migrations (produção)
 
 Fluxo recomendado:
 
@@ -27,15 +27,20 @@ npx prisma migrate dev --name "<nome>"
 npm run migrate:deploy
 ```
 
-### Variável de conexão
+## Variável de conexão
 
 - `DATABASE_URL` (formato Prisma):
 
-```
+```text
 postgresql://USER:PASS@HOST:5432/DB
 ```
 
-### Readiness do DB
+Em DEV (Docker Compose), você pode usar `.env`:
+
+- copie `\.env.example` → `.env`
+- ajuste `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+
+## Readiness do DB
 
 O endpoint `GET /api/readyz` faz:
 
@@ -45,4 +50,3 @@ O endpoint `GET /api/readyz` faz:
 Você pode desligar a checagem de PostGIS em ambientes específicos com:
 
 - `READYZ_CHECK_POSTGIS=false`
-

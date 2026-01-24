@@ -1,6 +1,6 @@
 // context/ProjectContext.tsx
 import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
-import { Project, EngineResult, Scenario, NetworkNode, User } from '../types';
+import { Project, EngineResult, MonteCarloResult, Scenario, NetworkNode, User } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from './ToastContext';
 import { createTemplateProject, generateId } from '../utils/projectUtils';
@@ -15,6 +15,9 @@ interface ProjectContextType {
   allResults: Record<string, EngineResult>;
   calcErrors: Record<string, string>;
   activeCalcError: string | null;
+  monteCarloResults: Record<string, MonteCarloResult>;
+  activeMonteCarlo: MonteCarloResult | null;
+  isMonteCarloRunning: boolean;
   backendConstants: any | null;
   isCalculating: boolean;
   setCurrentProjectId: (id: string | null) => void;
@@ -28,6 +31,7 @@ interface ProjectContextType {
   updateActiveScenario: (updates: Partial<Scenario>) => void;
   updateProject: (updates: Partial<Project>) => void;
   forceRecalculate: () => void;
+  runMonteCarlo: (iterations?: number) => Promise<void>;
   // Add other functions from useProjectManagement if needed
 }
 
@@ -51,6 +55,9 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     allResults: pm.allResults,
     calcErrors: pm.calcErrors,
     activeCalcError: pm.activeCalcError,
+    monteCarloResults: (pm as any).monteCarloResults ?? {},
+    activeMonteCarlo: (pm as any).activeMonteCarlo ?? null,
+    isMonteCarloRunning: (pm as any).isMonteCarloRunning ?? false,
     backendConstants: (pm as any).backendConstants ?? null,
     isCalculating: pm.isCalculating,
     setCurrentProjectId: pm.setCurrentProjectId,
@@ -64,6 +71,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({ children }) =>
     updateActiveScenario: pm.updateActiveScenario,
     updateProject: pm.updateProject,
     forceRecalculate: pm.forceRecalculate,
+    runMonteCarlo: (pm as any).runMonteCarlo,
   }), [pm]);
 
   return (

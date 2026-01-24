@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const isCI = !!process.env.CI;
+// Evita tratar CI="false"/"0" como true
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
 
 export default defineConfig({
   testDir: './e2e',

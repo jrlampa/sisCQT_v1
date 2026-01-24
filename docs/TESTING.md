@@ -1,6 +1,6 @@
-## Testes (unit, E2E, a11y, snapshots)
+# Testes (unit, E2E, a11y, snapshots)
 
-### Visão geral
+## Visão geral
 
 O projeto possui:
 
@@ -9,7 +9,12 @@ O projeto possui:
 - **Acessibilidade (axe-core)**: checagens automáticas de violações críticas/serious.
 - **Snapshots visuais (Playwright)**: baseline para páginas-chave.
 
-### Comandos
+Inclui também:
+
+- **Otimização**: testes do `POST /api/optimize` (liga na lógica real).
+- **Monte Carlo**: testes do `POST /api/montecarlo` (determinístico com `seed`) e fluxo E2E do botão “Rodar Simulação”.
+
+## Comandos
 
 - Rodar **tudo**:
 
@@ -35,7 +40,7 @@ npm run test:e2e
 npm run test:e2e:ui
 ```
 
-### Snapshots visuais
+## Snapshots visuais
 
 Por padrão, os snapshots visuais ficam **desabilitados localmente** para não bloquear o fluxo.
 
@@ -55,8 +60,7 @@ Baselines ficam em:
 
 - `e2e/visual.e2e.spec.ts-snapshots/`
 
-### Observação sobre a11y e contraste
+## Observação sobre a11y e contraste
 
 O check automático desabilita a regra `color-contrast` para reduzir falsos positivos em UI com **glass/blur/gradients**.
 Recomendação: validar contraste com auditoria visual e/ou ferramenta dedicada no design system.
-

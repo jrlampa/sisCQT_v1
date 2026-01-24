@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Project, EngineResult, Scenario, NetworkNode } from '../types';
+import { Project, EngineResult, MonteCarloResult, Scenario, NetworkNode } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
 import { createTemplateProject, createWelcomeProject, generateId } from '../utils/projectUtils';
@@ -13,6 +13,8 @@ export function useProjectManagement() {
   const [calcErrors, setCalcErrors] = useState<Record<string, string>>({});
   const [isCalculating, setIsCalculating] = useState(false);
   const [recalcTrigger, setRecalcTrigger] = useState(0);
+  const [monteCarloResults, setMonteCarloResults] = useState<Record<string, MonteCarloResult>>({});
+  const [isMonteCarloRunning, setIsMonteCarloRunning] = useState(false);
   const [serverConstants, setServerConstants] = useState<{
     cables: Project['cables'];
     ipTypes: Project['ipTypes'];
@@ -121,6 +123,9 @@ export function useProjectManagement() {
     allResults,
     calcErrors,
     activeCalcError: activeScenario ? (calcErrors[activeScenario.id] || null) : null,
+    monteCarloResults,
+    activeMonteCarlo: activeScenario ? (monteCarloResults[activeScenario.id] || null) : null,
+    isMonteCarloRunning,
     backendConstants: serverConstants,
     isCalculating,
     setCurrentProjectId,
@@ -164,6 +169,27 @@ export function useProjectManagement() {
       });
       updateActiveScenario({ nodes: optimizedNodes });
       showToast("Otimização concluída!", "success");
+    },
+    runMonteCarlo: async (iterations: number = 1000) => {
+      if (!project || !activeScenario) return;
+      setIsMonteCarloRunning(true);
+      try {
+        const res = await ApiService.runMonteCarlo({
+          scenarioId: activeScenario.id,
+          nodes: activeScenario.nodes,
+          params: activeScenario.params,
+          cables: project.cables,
+          ips: project.ipTypes,
+          iterations,
+          seed: activeScenario.id,
+        });
+        setMonteCarloResults((prev) => ({ ...prev, [activeScenario.id]: res }));
+        showToast("Simulação Monte Carlo concluída!", "success");
+      } catch (e: any) {
+        showToast(e?.message || "Falha ao executar Monte Carlo.", "error");
+      } finally {
+        setIsMonteCarloRunning(false);
+      }
     },
     // Add missing method to clone the current scenario within a project
     cloneScenario: () => {

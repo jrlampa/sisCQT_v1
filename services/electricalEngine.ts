@@ -252,13 +252,149 @@ export class ElectricalEngine {
     return currentNodes;
   }
 
-  static runMonteCarlo(nodes: NetworkNode[], params: ProjectParams, cables: Record<string, any>, ips: Record<string, number>, iterations: number = 1000): MonteCarloResult {
+  private static seedFromAny(seed: unknown): number {
+    if (typeof seed === 'number' && Number.isFinite(seed)) return seed | 0;
+    if (typeof seed === 'string') {
+      // hash simples determinístico (FNV-1a 32-bit)
+      let h = 2166136261;
+      for (let i = 0; i < seed.length; i++) {
+        h ^= seed.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h | 0;
+    }
+    // default: seed baseada no tempo (não determinístico)
+    return (Date.now() ^ Math.floor(Math.random() * 1e9)) | 0;
+  }
+
+  private static mulberry32(seed: number) {
+    let t = seed | 0;
+    return () => {
+      t += 0x6D2B79F5;
+      let x = Math.imul(t ^ (t >>> 15), 1 | t);
+      x ^= x + Math.imul(x ^ (x >>> 7), 61 | x);
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  private static clamp(n: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, n));
+  }
+
+  private static quantile(sorted: number[], q: number): number {
+    if (sorted.length === 0) return 0;
+    const qq = ElectricalEngine.clamp(q, 0, 1);
+    const idx = (sorted.length - 1) * qq;
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    const t = idx - lo;
+    return sorted[lo] * (1 - t) + sorted[hi] * t;
+  }
+
+  private static perturbLoad(rng: () => number, base: number, pct: number): number {
+    // Variação uniforme em ±pct
+    const factor = 1 + (rng() * 2 - 1) * pct;
+    return Math.max(0, base * factor);
+  }
+
+  /**
+   * Monte Carlo (real) para avaliar risco de violação sob incertezas de carga/GD.
+   * - Determinístico se `seed` for fornecido.\n   * - Por padrão usa histograma (20 bins) do `maxCqt`.\n   */
+  static runMonteCarlo(
+    nodes: NetworkNode[],
+    params: ProjectParams,
+    cables: Record<string, any>,
+    ips: Record<string, number>,
+    iterations: number = 1000,
+    seed?: unknown
+  ): MonteCarloResult {
+    const safeIterations = Math.max(10, Math.min(20000, Math.floor(iterations || 1000)));
+    const rng = ElectricalEngine.mulberry32(ElectricalEngine.seedFromAny(seed));
+    const profileData = (PROFILES as any)[params.profile] || PROFILES['Massivos'];
+    const cqtLimit = typeof profileData?.cqtMax === 'number' ? profileData.cqtMax : 6.0;
+
+    const maxCqts: number[] = [];
+    let failures = 0;
+
+    for (let i = 0; i < safeIterations; i++) {
+      // clona e perturba cargas
+      const perturbedNodes: NetworkNode[] = nodes.map((n) => {
+        const loads = n.loads || ({} as any);
+        const mono = Math.round(ElectricalEngine.perturbLoad(rng, Number(loads.mono || 0), 0.15));
+        const bi = Math.round(ElectricalEngine.perturbLoad(rng, Number(loads.bi || 0), 0.15));
+        const tri = Math.round(ElectricalEngine.perturbLoad(rng, Number(loads.tri || 0), 0.15));
+        const ipQty = Math.round(ElectricalEngine.perturbLoad(rng, Number(loads.ipQty || 0), 0.20));
+        const pointQty = Math.round(ElectricalEngine.perturbLoad(rng, Number(loads.pointQty || 0), 0.20));
+        const pointKva = ElectricalEngine.perturbLoad(rng, Number(loads.pointKva || 0), 0.25);
+        const solarQty = Math.round(ElectricalEngine.perturbLoad(rng, Number(loads.solarQty || 0), 0.30));
+        const solarKva = ElectricalEngine.perturbLoad(rng, Number(loads.solarKva || 0), 0.30);
+
+        return {
+          ...n,
+          loads: {
+            ...loads,
+            mono,
+            bi,
+            tri,
+            ipQty,
+            pointQty,
+            pointKva,
+            solarQty,
+            solarKva,
+          },
+        } as NetworkNode;
+      });
+
+      const result = ElectricalEngine.calculate('MC', perturbedNodes, params, cables, ips);
+      const maxCqt = Math.max(...result.nodes.map((n) => n.accumulatedCqt || 0), 0);
+      maxCqts.push(maxCqt);
+
+      // Critérios de falha: CQT acima do limite, sobrecarga de cabo, ou elevação de tensão acima de 5%.
+      const hasCqtFail = maxCqt > cqtLimit;
+      const hasOverload = result.nodes.some((n) => {
+        if (n.id === 'TRAFO') return false;
+        const amp = cables?.[n.cable]?.ampacity;
+        if (typeof amp !== 'number' || amp <= 0) return false;
+        return (n.calculatedLoad || 0) > amp;
+      });
+      const hasRiseFail = (result.gdImpact?.maxVoltageRise || 0) > 5.0;
+
+      if (hasCqtFail || hasOverload || hasRiseFail) failures += 1;
+    }
+
+    const sorted = [...maxCqts].sort((a, b) => a - b);
+    const avgMaxCqt = maxCqts.reduce((a, b) => a + b, 0) / maxCqts.length;
+    const p95Cqt = ElectricalEngine.quantile(sorted, 0.95);
+    const failureRisk = failures / maxCqts.length;
+
+    // Histograma de 20 bins (x = limite superior do bin, y = contagem)
+    const bins = 20;
+    const min = sorted[0] ?? 0;
+    const max = sorted[sorted.length - 1] ?? 0;
+    const span = Math.max(1e-6, max - min);
+    const counts = Array.from({ length: bins }, () => 0);
+
+    for (const v of sorted) {
+      const idx = Math.min(bins - 1, Math.floor(((v - min) / span) * bins));
+      counts[idx] += 1;
+    }
+
+    const distribution = counts.map((y, i) => {
+      const x = min + ((i + 1) / bins) * span;
+      return { x: Number(x.toFixed(2)), y };
+    });
+
+    // Índice de estabilidade: 1 - risco, penalizando p95 acima do limite.
+    const p95Penalty = Math.max(0, (p95Cqt - cqtLimit) / Math.max(1e-6, cqtLimit));
+    const stabilityIndex = ElectricalEngine.clamp(1 - failureRisk - p95Penalty * 0.5, 0, 1);
+
     return {
-      stabilityIndex: 0.88,
-      failureRisk: 0.04,
-      distribution: Array.from({ length: 20 }, (_, i) => ({ x: i + 1, y: Math.random() * 100 })),
-      avgMaxCqt: 4.15,
-      p95Cqt: 5.75
+      stabilityIndex,
+      failureRisk,
+      distribution,
+      avgMaxCqt: Number(avgMaxCqt.toFixed(2)),
+      p95Cqt: Number(p95Cqt.toFixed(2)),
     };
   }
 }

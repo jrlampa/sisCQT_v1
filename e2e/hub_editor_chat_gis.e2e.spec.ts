@@ -12,6 +12,12 @@ test('Hub -> abre projeto -> Editor recalcula -> Chatbot responde', async ({ pag
   await expect(page.getByText('Projeto Demo', { exact: true })).toBeVisible();
   await openDemoProject(page);
 
+  // Monte Carlo sob demanda (novo fluxo no Dashboard)
+  await expect(page.getByRole('button', { name: /Rodar Simulação/i })).toBeVisible();
+  await page.getByRole('button', { name: /Rodar Simulação/i }).click();
+  await expect(page.getByText(/Índice de Estabilidade/i)).toBeVisible();
+  await expect(page.getByText(/Risco de Falha/i)).toBeVisible();
+
   // Vai para Editor
   await page.getByRole('link', { name: /Editor de Rede/i }).click();
   await expect(page.getByText(/Editor de Topologia/i)).toBeVisible();

@@ -1,4 +1,4 @@
-import { Project, EngineResult, User, NetworkNode } from '../types.ts';
+import { Project, EngineResult, User, NetworkNode, MonteCarloResult } from '../types.ts';
 
 const API_BASE = '/api';
 const TOKEN_KEY = 'sisqat_auth_token';
@@ -157,6 +157,24 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify(payload)
     });
+  }
+
+  static async runMonteCarlo(payload: {
+    scenarioId: string;
+    nodes: any[];
+    params: any;
+    cables: any;
+    ips: any;
+    iterations?: number;
+    seed?: string | number;
+  }): Promise<MonteCarloResult> {
+    return this.request<MonteCarloResult>('/montecarlo', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      // Monte Carlo pode ser mais pesado; aumentamos timeout.
+      // @ts-ignore
+      timeoutMs: 60000,
+    } as any);
   }
 
   static async askAI(prompt: string, context: any): Promise<string> {

@@ -329,6 +329,135 @@ describe('API Endpoint Tests', () => {
     });
   });
 
+  describe('POST /api/optimize', () => {
+    it('deve retornar 401 sem token', async () => {
+      await request(app).post('/api/optimize').send({}).expect(401);
+    });
+
+    it('deve retornar 400 para payload inválido (Zod)', async () => {
+      const res = await request(app)
+        .post('/api/optimize')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({})
+        .expect(400);
+      expect(res.body).toMatchObject({ success: false });
+    });
+
+    it('deve ajustar o cabo quando há violação de ampacidade (caso mínimo)', async () => {
+      const payload = {
+        scenarioId: 'SCN-1',
+        params: {
+          trafoKva: 75,
+          profile: 'Massivos',
+          classType: 'Automatic',
+          manualClass: 'B',
+          normativeTable: 'PRODIST',
+          includeGdInQt: false,
+        },
+        cables: {
+          CABO_A: { r: 0.9, x: 0.1, coef: 0.9, ampacity: 10 },
+          CABO_B: { r: 0.5, x: 0.08, coef: 0.9, ampacity: 200 },
+        },
+        ips: { 'Sem IP': 0 },
+        nodes: [
+          {
+            id: 'TRAFO',
+            parentId: '',
+            meters: 0,
+            cable: 'CABO_B',
+            loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
+          },
+          {
+            id: 'P-1',
+            parentId: 'TRAFO',
+            meters: 30,
+            cable: 'CABO_A',
+            loads: { mono: 250, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
+          },
+        ],
+      };
+
+      const res = await request(app)
+        .post('/api/optimize')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(payload)
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
+      const p1 = res.body.find((n: any) => n.id === 'P-1');
+      expect(p1?.cable).toBe('CABO_B');
+    });
+  });
+
+  describe('POST /api/montecarlo', () => {
+    it('deve retornar 401 sem token', async () => {
+      await request(app).post('/api/montecarlo').send({}).expect(401);
+    });
+
+    it('deve retornar 400 para payload inválido (Zod)', async () => {
+      const res = await request(app)
+        .post('/api/montecarlo')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({})
+        .expect(400);
+      expect(res.body).toMatchObject({ success: false });
+    });
+
+    it('deve ser determinístico quando seed é fornecido', async () => {
+      const payload = {
+        scenarioId: 'SCN-1',
+        params: {
+          trafoKva: 75,
+          profile: 'Massivos',
+          classType: 'Automatic',
+          manualClass: 'B',
+          normativeTable: 'PRODIST',
+          includeGdInQt: false,
+        },
+        cables: {
+          CABO_A: { r: 0.9, x: 0.1, coef: 0.9, ampacity: 200 },
+        },
+        ips: { 'Sem IP': 0 },
+        nodes: [
+          {
+            id: 'TRAFO',
+            parentId: '',
+            meters: 0,
+            cable: 'CABO_A',
+            loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
+          },
+          {
+            id: 'P-1',
+            parentId: 'TRAFO',
+            meters: 30,
+            cable: 'CABO_A',
+            loads: { mono: 5, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 },
+          },
+        ],
+        iterations: 50,
+        seed: 'seed-test',
+      };
+
+      const r1 = await request(app)
+        .post('/api/montecarlo')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(payload)
+        .expect(200);
+
+      const r2 = await request(app)
+        .post('/api/montecarlo')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(payload)
+        .expect(200);
+
+      expect(r1.body).toEqual(r2.body);
+      expect(r1.body).toHaveProperty('stabilityIndex');
+      expect(r1.body).toHaveProperty('failureRisk');
+      expect(Array.isArray(r1.body.distribution)).toBe(true);
+      expect(r1.body.distribution.length).toBe(20);
+    });
+  });
+
   describe('GIS endpoints', () => {
     it('GET /api/gis/nodes deve retornar 401 sem token', async () => {
       const res = await request(app).get('/api/gis/nodes').expect(401);

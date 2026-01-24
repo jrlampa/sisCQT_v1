@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
 import { validate } from '../middlewares/validate.js';
-import { CalculateSchema } from '../schemas/engineSchemas.js';
+import { CalculateSchema, MonteCarloSchema, OptimizeSchema } from '../schemas/engineSchemas.js';
 import { ElectricalEngine } from '../services/electricalEngine.js';
 import { HttpError } from '../utils/httpError.js';
 
@@ -17,7 +17,7 @@ function metaDirname(): string {
   return u.startsWith('file:') ? path.dirname(fileURLToPath(u)) : path.dirname(u);
 }
 
-function calculateInWorker(payload: any) {
+function runInWorker(payload: any) {
   return new Promise<any>((resolve, reject) => {
     const isProd = process.env.NODE_ENV === 'production';
     const workerExt = isProd ? 'js' : 'ts';
@@ -80,7 +80,7 @@ engineRoutes.post('/calculate', authMiddleware as any, validate(CalculateSchema)
     let result: any;
     if (useWorker) {
       try {
-        result = await calculateInWorker({ scenarioId, nodes, params, cables, ips });
+        result = await runInWorker({ op: 'calculate', scenarioId, nodes, params, cables, ips });
       } catch (err) {
         // Fallback controlado: mantém o serviço funcional se o worker falhar por ambiente/config.
         // Pode ser desabilitado com ENABLE_ENGINE_WORKER_STRICT=true.
@@ -97,9 +97,51 @@ engineRoutes.post('/calculate', authMiddleware as any, validate(CalculateSchema)
   }
 });
 
-engineRoutes.post('/optimize', authMiddleware as any, (req, res) => {
-  const { nodes } = req.body;
-  console.log('Optimization requested, returning mock data.');
-  res.json(nodes);
+engineRoutes.post('/optimize', authMiddleware as any, validate(OptimizeSchema) as any, async (req, res, next) => {
+  const { scenarioId, nodes, params, cables, ips } = req.body;
+  try {
+    const useWorker = process.env.ENABLE_ENGINE_WORKER !== 'false';
+
+    let optimized: any;
+    if (useWorker) {
+      try {
+        optimized = await runInWorker({ op: 'optimize', scenarioId, nodes, params, cables, ips });
+      } catch (err) {
+        if (process.env.ENABLE_ENGINE_WORKER_STRICT === 'true') throw err;
+        console.warn('Falha ao executar otimização no worker; usando fallback síncrono.', err);
+        optimized = ElectricalEngine.optimize(scenarioId, nodes, params, cables, ips);
+      }
+    } else {
+      optimized = ElectricalEngine.optimize(scenarioId, nodes, params, cables, ips);
+    }
+
+    return res.json(optimized);
+  } catch (error: any) {
+    return next(new HttpError(500, 'Erro na otimização de rede.', undefined, error));
+  }
+});
+
+engineRoutes.post('/montecarlo', authMiddleware as any, validate(MonteCarloSchema) as any, async (req, res, next) => {
+  const { nodes, params, cables, ips, iterations, seed } = req.body;
+  try {
+    const useWorker = process.env.ENABLE_ENGINE_WORKER !== 'false';
+
+    let result: any;
+    if (useWorker) {
+      try {
+        result = await runInWorker({ op: 'montecarlo', scenarioId: 'MC', nodes, params, cables, ips, iterations, seed });
+      } catch (err) {
+        if (process.env.ENABLE_ENGINE_WORKER_STRICT === 'true') throw err;
+        console.warn('Falha ao executar Monte Carlo no worker; usando fallback síncrono.', err);
+        result = ElectricalEngine.runMonteCarlo(nodes, params, cables, ips, iterations, seed);
+      }
+    } else {
+      result = ElectricalEngine.runMonteCarlo(nodes, params, cables, ips, iterations, seed);
+    }
+
+    return res.json(result);
+  } catch (error: any) {
+    return next(new HttpError(500, 'Erro na simulação Monte Carlo.', undefined, error));
+  }
 });
 
