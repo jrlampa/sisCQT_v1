@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Project, NetworkNode } from '../types';
 import UnifilarDiagram from './UnifilarDiagram';
 import { useToast } from '../context/ToastContext.tsx';
@@ -16,6 +16,7 @@ interface EditorRowProps {
   resNode?: NetworkNode;
   isTrafo: boolean;
   isChanged?: boolean;
+  availableParentIds: string[];
   cables: Project['cables'];
   ipTypes: Project['ipTypes'];
   profile: string;
@@ -26,7 +27,7 @@ interface EditorRowProps {
 }
 
 const EditorRow: React.FC<EditorRowProps> = React.memo(({ 
-  node, resNode, isTrafo, isChanged, cables, ipTypes, profile, profiles, onUpdateField, onRemove, rowIndex 
+  node, resNode, isTrafo, isChanged, availableParentIds, cables, ipTypes, profile, profiles, onUpdateField, onRemove, rowIndex 
 }) => {
   const cableData = cables[node.cable];
   const isOverloaded = !isTrafo && (resNode?.calculatedLoad || 0) > (cableData?.ampacity || 0);
@@ -108,15 +109,19 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
 
       <td className="px-6 py-4">
         {!isTrafo && (
-          <input 
+          <select
             data-row={rowIndex} data-col={1}
             aria-label="ID do pai"
-            title="ID do pai"
-            className="w-full bg-white/50 border border-gray-100 px-3 py-2 rounded-xl text-xs font-bold uppercase outline-none focus:border-blue-400" 
-            value={node.parentId} 
+            title="ID do pai (obrigatório)"
+            className="w-full bg-white/60 border border-gray-100 px-3 py-2 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-400"
+            value={availableParentIds.includes(node.parentId) ? node.parentId : 'TRAFO'}
             onChange={e => onUpdateField(node.id, 'parentId', e.target.value.toUpperCase())}
             onKeyDown={e => handleKeyDown(e, 1)}
-          />
+          >
+            {availableParentIds.map((pid) => (
+              <option key={pid} value={pid}>{pid}</option>
+            ))}
+          </select>
         )}
       </td>
 
@@ -272,6 +277,52 @@ const ProjectEditor: React.FC = () => {
   const currentProjectAndScenario = { ...project, ...activeScenario };
   const calculatedNodes = activeResult?.nodes || [];
   const [view, setView] = useState<'table' | 'diagram'>('table');
+  const warnedFixRef = useRef(false);
+
+  const parentOptions = useMemo(() => {
+    // Todo nó precisa de um pai, exceto o TRAFO.
+    // Para editar o pai, listamos TRAFO + todos os demais IDs existentes.
+    const ids = currentProjectAndScenario.nodes
+      .map((n) => String(n.id || '').trim().toUpperCase())
+      .filter(Boolean);
+    const unique = Array.from(new Set(ids));
+    // Garante TRAFO como primeira opção
+    const rest = unique.filter((id) => id !== 'TRAFO').sort();
+    return ['TRAFO', ...rest];
+  }, [currentProjectAndScenario.nodes]);
+
+  // Enforce: todo nó precisa de um pai (exceto TRAFO). Também normaliza para uppercase.
+  useEffect(() => {
+    const nodes = currentProjectAndScenario.nodes;
+    const ids = new Set(nodes.map((n) => String(n.id || '').trim().toUpperCase()).filter(Boolean));
+
+    let changed = false;
+    const fixed = nodes.map((n) => {
+      const id = String(n.id || '').trim().toUpperCase();
+      if (id === 'TRAFO') {
+        if (n.parentId !== '') changed = true;
+        return { ...n, id, parentId: '' };
+      }
+
+      const parentId = String(n.parentId || '').trim().toUpperCase();
+      if (!parentId || parentId === id || !ids.has(parentId)) {
+        changed = true;
+        return { ...n, id, parentId: 'TRAFO' };
+      }
+      // normaliza parentId
+      if (parentId !== n.parentId) changed = true;
+      if (id !== n.id) changed = true;
+      return { ...n, id, parentId };
+    });
+
+    if (changed) {
+      updateActiveScenario({ nodes: fixed });
+      if (!warnedFixRef.current) {
+        warnedFixRef.current = true;
+        showToast('Alguns nós estavam sem pai válido; foram atribuídos ao TRAFO. Revise os montantes se necessário.', 'warning');
+      }
+    }
+  }, [currentProjectAndScenario.nodes, updateActiveScenario, showToast]);
 
   const handleUpdateField = useCallback((nodeId: string, field: string, value: any) => {
     const newNodes = currentProjectAndScenario.nodes.map(n => {
@@ -301,17 +352,22 @@ const ProjectEditor: React.FC = () => {
         }
     });
     const nextId = `P-${maxNumericId + 1}`;
-    
-    const parentId = allNodes.length > 0 ? allNodes[allNodes.length - 1].id : 'TRAFO';
-    
-    if (allNodes.length === 0 && parentId !== 'TRAFO') {
-        showToast("É necessário um TRAFO para iniciar a rede.", "error");
-        return;
+
+    // Pai padrão: último nó com ID válido; fallback: TRAFO.
+    const lastWithId = [...allNodes]
+      .reverse()
+      .map((n) => String(n.id || '').trim().toUpperCase())
+      .find((id) => id.length > 0) || 'TRAFO';
+
+    const parentId = lastWithId === nextId ? 'TRAFO' : lastWithId;
+    if (nextId !== 'TRAFO' && (!parentId || parentId === '')) {
+      showToast("Todo nó precisa de um pai (exceto TRAFO).", "error");
+      return;
     }
 
     const newNode: NetworkNode = {
       id: nextId,
-      parentId,
+      parentId: parentId || 'TRAFO',
       meters: 30,
       cable: allNodes.length > 0 ? allNodes[0].cable : Object.keys(project.cables)[0],
       loads: { mono: 0, bi: 0, tri: 0, pointQty: 0, pointKva: 0, ipType: 'Sem IP', ipQty: 0, solarKva: 0, solarQty: 0 }
@@ -381,6 +437,7 @@ const ProjectEditor: React.FC = () => {
                   rowIndex={i}
                   resNode={calculatedNodes.find(rn => rn.id === node.id)}
                   isTrafo={node.id === 'TRAFO'}
+                  availableParentIds={parentOptions.filter((pid) => pid !== node.id)}
                   cables={currentProjectAndScenario.cables}
                   ipTypes={currentProjectAndScenario.ipTypes}
                   profile={currentProjectAndScenario.params.profile}
