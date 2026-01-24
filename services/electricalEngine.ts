@@ -73,7 +73,12 @@ export class ElectricalEngine {
     }
 
     // 3. Fase Bottom-Up: Acumulação de Cargas Reais
-    const accumulateLoads = (node: TreeNode): { total: number, solar: number } => {
+    const accumulateLoads = (node: TreeNode, path: Set<string>): { total: number, solar: number } => {
+      if (path.has(node.id)) {
+        throw new Error(`Cyclic dependency detected in network topology involving node ${node.id}`);
+      }
+      path.add(node.id);
+
       // Carga Distribuída: Residencial que se distribui ao longo do vão
       const resQty = (node.loads?.mono || 0) + (node.loads?.bi || 0) + (node.loads?.tri || 0);
       node.nodeDistributedKva = resQty * globalDmdiFactor;
@@ -87,7 +92,7 @@ export class ElectricalEngine {
       node.nodeSolarKva = node.loads?.solarKva || 0;
 
       const childrenTotals = node.children.reduce((acc, child) => {
-        const res = accumulateLoads(child);
+        const res = accumulateLoads(child, new Set(path)); // Pass a copy of the path
         return { total: acc.total + res.total, solar: acc.solar + res.solar };
       }, { total: 0, solar: 0 });
 
@@ -98,7 +103,7 @@ export class ElectricalEngine {
       return { total: node.subtreeTotalKva, solar: node.subtreeTotalSolarKva };
     };
 
-    accumulateLoads(trafoNode);
+    accumulateLoads(trafoNode, new Set());
 
     // 4. Fase Top-Down: Cálculo Físico (Queda de Tensão e Perdas)
     let totalJouleLossWatts = 0;

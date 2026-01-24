@@ -36,6 +36,34 @@ $$CQT = \sum (kVA \cdot L \cdot Coef_{cabo} \cdot 0.5)$$
 - `types.ts`: Definições rigorosas de contratos de dados.
 - `constants.ts`: Catálogo técnico de cabos, tabelas DMDI e perfis normativos.
 
+## ▶️ Rodando localmente (recomendado: Docker)
+
+### Pré-requisitos
+
+- Docker Desktop (com suporte a Docker Compose)
+
+### Subir app + banco (PostGIS)
+
+1) Na raiz do projeto:
+
+```bash
+docker compose up --build
+```
+
+2) Acesse:
+
+- Frontend: `http://localhost:3000`
+- API: `http://localhost:8080`
+
+### Extensões do banco (PostGIS + pgcrypto)
+
+O banco sobe com scripts de init em `docker/db/init/` (executados **somente no primeiro init do volume**). Se você já tinha um volume antigo, recrie o volume para aplicar:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
 ---
 **IM3 Brasil — Engenharia Digital**  
 *Transformando dados de rede em decisões de alta performance.*

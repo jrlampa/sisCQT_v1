@@ -1,3 +1,4 @@
+import { PrismaClientKnownRequestError, PrismaClientValidationError } from '@prisma/client/runtime/library';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -65,8 +66,11 @@ app.post('/api/projects', authMiddleware as any, async (req, res) => {
       },
     });
     res.status(201).json(project);
-  } catch (e) {
-    console.error("Failed to create project:", e);
+  } catch (e: any) {
+    console.error("Failed to create project:", e.name, e.code, e); // DEBUG LOG
+    if (e.name === 'PrismaClientValidationError') {
+      return res.status(400).json({ error: 'Erro de validação ao criar projeto: ' + e.message });
+    }
     res.status(500).json({ error: 'Erro ao criar projeto.' });
   }
 });
@@ -79,8 +83,13 @@ app.put('/api/projects/:id', authMiddleware as any, async (req, res) => {
       data: req.body,
     });
     res.json(project);
-  } catch (e) {
-    console.error("Failed to update project:", e);
+  } catch (e: any) {
+    console.error("Failed to update project:", e.name, e.code, e); // DEBUG LOG
+    if (e.name === 'PrismaClientValidationError') {
+        return res.status(400).json({ error: 'Erro de validação ao atualizar projeto: ' + e.message });
+    } else if (e.name === 'PrismaClientKnownRequestError' && e.code === 'P2025') {
+        return res.status(404).json({ error: 'Projeto não encontrado.' });
+    }
     res.status(500).json({ error: 'Erro ao atualizar projeto.' });
   }
 });
@@ -92,8 +101,11 @@ app.delete('/api/projects/:id', authMiddleware as any, async (req, res) => {
       where: { id },
     });
     res.status(204).send();
-  } catch (e) {
-    console.error("Failed to delete project:", e);
+  } catch (e: any) {
+    console.error("Failed to delete project:", e.name, e.code, e); // DEBUG LOG
+    if (e.name === 'PrismaClientKnownRequestError' && e.code === 'P2025') {
+        return res.status(404).json({ error: 'Projeto não encontrado.' });
+    }
     res.status(500).json({ error: 'Erro ao apagar projeto.' });
   }
 });
@@ -149,3 +161,5 @@ app.get(/.*/, (req: any, res: any) => {
 app.listen(PORT, () => {
   console.log(`>>> siSCQT Enterprise active on port ${PORT}`);
 });
+
+export default app;
