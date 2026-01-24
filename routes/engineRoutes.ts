@@ -3,6 +3,7 @@ import { Worker } from 'node:worker_threads';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
+import { requireProForFeature } from '../middlewares/planMiddleware.js';
 import { validate } from '../middlewares/validate.js';
 import { CalculateSchema, MonteCarloSchema, OptimizeSchema } from '../schemas/engineSchemas.js';
 import { ElectricalEngine } from '../services/electricalEngine.js';
@@ -97,7 +98,7 @@ engineRoutes.post('/calculate', authMiddleware as any, validate(CalculateSchema)
   }
 });
 
-engineRoutes.post('/optimize', authMiddleware as any, validate(OptimizeSchema) as any, async (req, res, next) => {
+engineRoutes.post('/optimize', authMiddleware as any, requireProForFeature('Otimização') as any, validate(OptimizeSchema) as any, async (req, res, next) => {
   const { scenarioId, nodes, params, cables, ips } = req.body;
   try {
     const useWorker = process.env.ENABLE_ENGINE_WORKER !== 'false';

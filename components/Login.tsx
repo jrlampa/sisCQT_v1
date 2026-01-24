@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { useMsal } from "@azure/msal-react";
+import { GoogleLogin } from '@react-oauth/google';
 import { loginRequest } from "../authConfig.ts";
 import { ApiService } from '../services/apiService.ts';
 import { User } from '../types.ts';
@@ -17,6 +18,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
   const handleDevLogin = async () => {
     setIsLoading(true);
@@ -82,7 +84,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         </div>
         
         <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight mb-2">Engenharia Digital</h2>
-        <p className="text-gray-500 text-sm mb-10">Acesse com sua conta corporativa IM3 Brasil</p>
+        <p className="text-gray-500 text-sm mb-10">
+          IM3: entre com Microsoft 365. Usuários avulsos: entre com Google.
+        </p>
 
         {error && (
           <div className="mb-6 bg-red-50 text-red-600 text-[10px] font-black p-4 rounded-2xl border border-red-100 uppercase tracking-tight leading-tight animate-in fade-in slide-in-from-top-2">
@@ -110,6 +114,33 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <div className="flex-grow border-t border-gray-200"></div>
               <span className="flex-shrink mx-4 text-[9px] font-black text-gray-400 uppercase tracking-widest">OU ACESSO RÁPIDO</span>
               <div className="flex-grow border-t border-gray-200"></div>
+          </div>
+
+          <div className="flex flex-col gap-3 items-center">
+            {googleClientId ? (
+              <GoogleLogin
+                onSuccess={async (credentialResponse) => {
+                  try {
+                    const token = credentialResponse.credential;
+                    if (!token) throw new Error('Token do Google ausente.');
+                    setIsLoading(true);
+                    const user = await ApiService.syncUser(token);
+                    onLogin(user);
+                    showToast(`Bem-vindo, ${user.name}!`, "success");
+                  } catch (e: any) {
+                    setError(e?.message || 'Falha ao autenticar com Google.');
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                onError={() => setError('Falha ao autenticar com Google.')}
+                useOneTap={false}
+              />
+            ) : (
+              <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">
+                Google login indisponível (defina VITE_GOOGLE_CLIENT_ID)
+              </div>
+            )}
           </div>
 
           <button 

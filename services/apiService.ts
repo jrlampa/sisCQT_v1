@@ -177,6 +177,18 @@ export class ApiService {
     } as any);
   }
 
+  static async billingStatus(): Promise<{ plan: User['plan']; authProvider?: User['authProvider']; subscription: any | null }> {
+    return this.request('/billing/status', { method: 'GET' });
+  }
+
+  static async billingCheckout(): Promise<{ url: string | null }> {
+    return this.request<{ url: string | null }>('/billing/checkout', { method: 'POST' });
+  }
+
+  static async billingPortal(): Promise<{ url: string | null }> {
+    return this.request<{ url: string | null }>('/billing/portal', { method: 'POST' });
+  }
+
   static async runMonteCarlo(payload: {
     scenarioId: string;
     nodes: any[];

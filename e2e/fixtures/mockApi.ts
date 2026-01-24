@@ -1,6 +1,6 @@
 import type { Page, Route, Request as PWRequest } from '@playwright/test';
 
-type User = { id: string; name: string; email: string; plan: 'Free' | 'Pro' | 'Enterprise' };
+type User = { id: string; name: string; email: string; plan: 'Free' | 'Pro' | 'Enterprise'; authProvider?: 'ENTRA' | 'GOOGLE' };
 
 type Feature = {
   type: 'Feature';
@@ -38,6 +38,7 @@ export async function installMockApi(page: Page) {
     name: 'Desenvolvedor Local',
     email: 'teste@im3brasil.com.br',
     plan: 'Pro',
+    authProvider: 'ENTRA',
   };
 
   const constants = {
@@ -119,6 +120,20 @@ export async function installMockApi(page: Page) {
       const body = readJsonBody(request);
       if (!body?.token) return json(route, 400, { success: false, error: 'Token é obrigatório' });
       return json(route, 200, { user });
+    }
+
+    // Billing (requires auth)
+    if (pathname === '/api/billing/status' && method === 'GET') {
+      if (!hasAuth(request)) return json(route, 401, { success: false, error: 'Token não fornecido' });
+      return json(route, 200, { plan: user.plan, authProvider: user.authProvider, subscription: { status: 'active' } });
+    }
+    if (pathname === '/api/billing/checkout' && method === 'POST') {
+      if (!hasAuth(request)) return json(route, 401, { success: false, error: 'Token não fornecido' });
+      return json(route, 200, { url: 'https://example.com/stripe-checkout' });
+    }
+    if (pathname === '/api/billing/portal' && method === 'POST') {
+      if (!hasAuth(request)) return json(route, 401, { success: false, error: 'Token não fornecido' });
+      return json(route, 200, { url: 'https://example.com/stripe-portal' });
     }
 
     // Public constants

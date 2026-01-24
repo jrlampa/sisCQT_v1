@@ -1,11 +1,14 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
+import { OAuth2Client } from 'google-auth-library';
 
 type GetKeyCallback = (err: Error | null, key?: string) => void;
 
 let cachedJwksClient: ReturnType<typeof jwksClient> | null = null;
+let cachedGoogleClient: OAuth2Client | null = null;
 
 const DEV_MOCK_TOKEN = 'dev-token-im3';
+const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
 
 class AuthConfigError extends Error {
   constructor(message: string) {
@@ -21,6 +24,25 @@ function isProduction(): boolean {
 function isMockAuthEnabled(): boolean {
   // Em produção, o mock deve ser sempre desabilitado (Entra-only).
   return process.env.ENABLE_MOCK_AUTH === 'true' && !isProduction();
+}
+
+function getGoogleClient() {
+  if (cachedGoogleClient) return cachedGoogleClient;
+  const clientId = (process.env.GOOGLE_CLIENT_ID || '').trim();
+  // ClientId é obrigatório para validar o aud do ID token.
+  if (!clientId) {
+    throw new AuthConfigError('Variável de ambiente ausente: GOOGLE_CLIENT_ID (necessária para login Google).');
+  }
+  cachedGoogleClient = new OAuth2Client(clientId);
+  return cachedGoogleClient;
+}
+
+export async function verifyGoogleIdToken(idToken: string): Promise<jwt.JwtPayload | undefined> {
+  if (!idToken) return Promise.reject(new Error('Token vazio ou ausente.'));
+  const client = getGoogleClient();
+  const ticket = await client.verifyIdToken({ idToken });
+  const payload = ticket.getPayload();
+  return payload as any;
 }
 
 function requireEnv(name: 'MSAL_JWKS_URI' | 'MSAL_AUDIENCE' | 'MSAL_ISSUER'): string {
@@ -84,6 +106,13 @@ export function verifyToken(token: string): Promise<jwt.JwtPayload | undefined> 
 
   if (!token) {
     return Promise.reject(new Error('Token vazio ou ausente.'));
+  }
+
+  // Detecta issuer sem verificar assinatura (apenas roteamento). A validação real ocorre abaixo.
+  const decoded = jwt.decode(token, { complete: false }) as any;
+  const iss = typeof decoded?.iss === 'string' ? decoded.iss : '';
+  if (iss && GOOGLE_ISSUERS.has(iss)) {
+    return verifyGoogleIdToken(token);
   }
 
   const audienceEnv = requireEnv('MSAL_AUDIENCE');
@@ -152,5 +181,12 @@ export function assertProdAuthConfig(): void {
   const audiences = audienceEnv.split(',').map((s) => s.trim()).filter(Boolean);
   if (audiences.length === 0) {
     throw new AuthConfigError('Variável de ambiente inválida: MSAL_AUDIENCE não pode ser vazia.');
+  }
+
+  // Google login (usuários avulsos) é opcional em produção, mas se habilitado no frontend
+  // deve existir GOOGLE_CLIENT_ID para validar o ID token.
+  if ((process.env.GOOGLE_CLIENT_ID || '').trim().length === 0) {
+    // eslint-disable-next-line no-console
+    console.warn('[auth] GOOGLE_CLIENT_ID não configurado: login Google ficará indisponível.');
   }
 }

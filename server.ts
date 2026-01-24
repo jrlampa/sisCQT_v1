@@ -13,6 +13,7 @@ import { geminiRoutes } from './routes/geminiRoutes.js';
 import { gisRoutes } from './routes/gisRoutes.js';
 import { healthRoutes } from './routes/healthRoutes.js';
 import { importRoutes } from './routes/importRoutes.js';
+import { billingRoutes } from './routes/billingRoutes.js';
 import { authMiddleware } from './middlewares/authMiddleware.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { assertProdAuthConfig } from './utils/tokenUtils.js';
@@ -85,7 +86,15 @@ app.use((req, res, next) => {
 // Limites de payload (evita abuso e payloads gigantes)
 const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
 const urlencodedBodyLimit = process.env.URLENCODED_BODY_LIMIT || '2mb';
-app.use(express.json({ limit: jsonBodyLimit }));
+app.use(express.json({
+  limit: jsonBodyLimit,
+  verify: (req: any, _res, buf) => {
+    // Stripe Webhooks precisam do corpo bruto para validar assinatura.
+    if (req.originalUrl === '/api/billing/webhook') {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: urlencodedBodyLimit }));
 
 // Rate limiting básico (principalmente em produção)
@@ -115,6 +124,7 @@ app.use('/api', engineRoutes);
 app.use('/api/gemini', geminiRoutes);
 app.use('/api/gis', gisRoutes);
 app.use('/api/import', authMiddleware, importRoutes);
+app.use('/api/billing', billingRoutes);
 
 // Static files handling
 // Em dev, `__dirname` aponta para a raiz do repo; em prod, para `dist/server`.

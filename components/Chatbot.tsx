@@ -53,7 +53,10 @@ const Chatbot: React.FC = () => {
       const response = await ApiService.askAI(userMsg, technicalContext);
       setMessages(prev => [...prev, { role: 'ai', text: response }]);
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'ai', text: "Desculpe, ocorreu um erro ao processar sua solicitação técnica." }]);
+      const msg =
+        (err as any)?.message ||
+        "Desculpe, ocorreu um erro ao processar sua solicitação técnica.";
+      setMessages(prev => [...prev, { role: 'ai', text: msg }]);
     } finally {
       setLoading(false);
     }

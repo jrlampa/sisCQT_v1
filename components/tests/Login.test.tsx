@@ -4,6 +4,11 @@ import Login from '../Login';
 import { useMsal } from '@azure/msal-react';
 import { ApiService } from '../../services/apiService'; // Import ApiService to mock it
 
+// Mock do Google Login para não depender de provider/context
+vi.mock('@react-oauth/google', () => ({
+  GoogleLogin: () => <div data-testid="google-login-mock">GoogleLogin</div>,
+}));
+
 // Mock the useToast hook
 vi.mock('../../context/ToastContext.tsx', () => ({
   useToast: () => ({
@@ -50,7 +55,7 @@ describe('Login Component', () => {
 
     // Check for the main title and subtitle
     expect(screen.getByText('Engenharia Digital')).toBeDefined();
-    expect(screen.getByText('Acesse com sua conta corporativa IM3 Brasil')).toBeDefined();
+    expect(screen.getByText(/IM3: entre com Microsoft 365/i)).toBeDefined();
 
     // Check for the main login button
     const loginButton = screen.getByRole('button', { name: /ENTRAR COM MICROSOFT 365/i });

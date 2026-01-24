@@ -17,10 +17,12 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
       const testEmail = 'teste@im3brasil.com.br';
       const user = await prisma.user.upsert({
         where: { email: testEmail },
-        update: {},
+        update: { plan: 'Enterprise', authProvider: 'ENTRA' },
         create: {
           email: testEmail,
           name: 'Desenvolvedor Local',
+          plan: 'Enterprise',
+          authProvider: 'ENTRA',
         }
       });
       req.user = user;
@@ -41,22 +43,40 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
   try {
     const decoded = await verifyToken(token);
 
-    if (!decoded || (!decoded.upn && !decoded.email && !decoded.preferred_username)) {
+    if (!decoded || (!decoded.upn && !decoded.email && !decoded.preferred_username && !decoded.sub)) {
       return res.status(401).json({ success: false, error: 'Token inválido: faltam claims de utilizador.' });
     }
 
-    const userEmail = (decoded.upn || decoded.email || decoded.preferred_username).toLowerCase();
+    const rawEmail = (decoded.upn || decoded.email || decoded.preferred_username || '').toLowerCase();
+    const userEmail = rawEmail;
+    if (!userEmail) {
+      return res.status(401).json({ success: false, error: 'Token inválido: email ausente.' });
+    }
 
-    if (!userEmail.endsWith('@im3brasil.com.br')) {
-      return res.status(403).json({ success: false, error: 'Domínio não autorizado.' });
+    // Regras de negócio:
+    // - IM3: só Entra, acesso irrestrito (Enterprise)
+    // - Avulsos: Google, plano Free por padrão (pode virar Pro via Stripe)
+    const isIm3 = userEmail.endsWith('@im3brasil.com.br');
+    const issuer = String((decoded as any).iss || '').toLowerCase();
+    const isGoogleIssuer = issuer === 'accounts.google.com' || issuer === 'https://accounts.google.com';
+    const authProvider = isGoogleIssuer ? 'GOOGLE' : 'ENTRA';
+
+    if (isIm3 && authProvider === 'GOOGLE') {
+      return res.status(403).json({ success: false, error: 'Use Entra ID para contas @im3brasil.com.br.' });
     }
 
     const user = await prisma.user.upsert({
       where: { email: userEmail },
-      update: {},
+      update: {
+        name: (decoded as any).name || userEmail.split('@')[0],
+        authProvider: authProvider as any,
+        plan: isIm3 ? ('Enterprise' as any) : undefined,
+      },
       create: {
         email: userEmail,
-        name: decoded.name || userEmail.split('@')[0],
+        name: (decoded as any).name || userEmail.split('@')[0],
+        authProvider: authProvider as any,
+        plan: (isIm3 ? 'Enterprise' : 'Free') as any,
       }
     });
 

@@ -1,6 +1,8 @@
 
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { User } from '../types';
+import { ApiService } from '../services/apiService';
+import { useToast } from '../context/ToastContext';
 
 interface BillingProps {
   user: User;
@@ -8,6 +10,34 @@ interface BillingProps {
 }
 
 const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
+  const { showToast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [status, setStatus] = useState<{ plan: User['plan']; authProvider?: User['authProvider']; subscription: any | null } | null>(null);
+
+  const isIm3 = useMemo(() => user.email.toLowerCase().endsWith('@im3brasil.com.br'), [user.email]);
+  const provider = (status?.authProvider || user.authProvider || (isIm3 ? 'ENTRA' : 'GOOGLE')) as 'ENTRA' | 'GOOGLE';
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const s = await ApiService.billingStatus();
+        if (!cancelled) setStatus(s);
+      } catch (e: any) {
+        // status é opcional; UI ainda funciona com `user.plan`
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Atualiza plan no app quando backend/webhook concluir
+  useEffect(() => {
+    if (!status?.plan) return;
+    if (status.plan !== user.plan) onUpdatePlan(status.plan);
+  }, [status?.plan]);
+
   const plans = [
     { 
       id: 'Free', 
@@ -36,9 +66,37 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
     }
   ];
 
-  const handleUpgrade = (planId: User['plan']) => {
-    if (confirm(`Confirmar upgrade para o plano ${planId}?`)) {
-      onUpdatePlan(planId);
+  const handleUpgrade = async (planId: User['plan']) => {
+    if (provider === 'ENTRA' || isIm3 || user.plan === 'Enterprise') {
+      showToast('Conta corporativa: acesso irrestrito (sem cobrança).', 'info');
+      return;
+    }
+    if (planId !== 'Pro') {
+      showToast('Para avulsos, apenas o plano Pro é assinado via pagamento.', 'info');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const res = await ApiService.billingCheckout();
+      if (!res?.url) throw new Error('URL de checkout não retornada.');
+      window.location.href = res.url;
+    } catch (e: any) {
+      showToast(e?.message || 'Falha ao iniciar checkout.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePortal = async () => {
+    setIsLoading(true);
+    try {
+      const res = await ApiService.billingPortal();
+      if (!res?.url) throw new Error('URL do portal não retornada.');
+      window.location.href = res.url;
+    } catch (e: any) {
+      showToast(e?.message || 'Falha ao abrir portal.', 'error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -46,7 +104,9 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
     <div className="max-w-6xl mx-auto flex flex-col gap-12 animate-in fade-in duration-700">
       <header className="text-center">
         <h2 className="text-4xl font-black text-gray-800 tracking-tight mb-4">Escolha sua Potência</h2>
-        <p className="text-gray-500 font-medium">Planos flexíveis para engenheiros individuais e grandes distribuidoras</p>
+        <p className="text-gray-500 font-medium">
+          {provider === 'ENTRA' ? 'Acesso corporativo IM3 (sem cobrança).' : 'Assinatura para usuários avulsos via Stripe/Google Pay.'}
+        </p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -79,14 +139,14 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
 
             <button 
               onClick={() => handleUpgrade(p.id)}
-              disabled={user.plan === p.id}
+              disabled={isLoading || user.plan === p.id || (provider !== 'GOOGLE' && p.id !== user.plan)}
               className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
-                user.plan === p.id 
+                user.plan === p.id || isLoading
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                 : `${p.color} ${p.textColor} shadow-xl hover:scale-105`
               }`}
             >
-              {user.plan === p.id ? 'Plano Atual' : 'Assinar Agora'}
+              {user.plan === p.id ? 'Plano Atual' : (p.id === 'Pro' && provider === 'GOOGLE' ? 'Assinar Pro' : 'Indisponível')}
             </button>
           </div>
         ))}
@@ -96,11 +156,25 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
          <div className="flex items-center gap-6">
             <div className="text-4xl bg-blue-50 w-16 h-16 flex items-center justify-center rounded-2xl">💳</div>
             <div>
-               <h4 className="text-lg font-black text-gray-800">Método de Pagamento</h4>
-               <p className="text-sm text-gray-500 font-medium italic">Cartão final **** 4242 • Próximo faturamento: 12/11/2024</p>
+               <h4 className="text-lg font-black text-gray-800">Assinatura</h4>
+               <p className="text-sm text-gray-500 font-medium italic">
+                 {provider === 'ENTRA'
+                   ? 'Conta corporativa (sem cobrança).'
+                   : (status?.subscription?.status
+                       ? `Status: ${status.subscription.status}`
+                       : 'Sem assinatura ativa.')}
+               </p>
             </div>
          </div>
-         <button className="text-blue-600 font-black text-xs uppercase tracking-widest hover:bg-blue-50 px-6 py-3 rounded-xl transition-all">Gerenciar Cartões</button>
+         {provider === 'GOOGLE' && (
+           <button
+             onClick={handlePortal}
+             disabled={isLoading}
+             className={`text-blue-600 font-black text-xs uppercase tracking-widest hover:bg-blue-50 px-6 py-3 rounded-xl transition-all ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+           >
+             Gerenciar Assinatura
+           </button>
+         )}
       </div>
     </div>
   );

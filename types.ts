@@ -4,6 +4,7 @@ export interface User {
   name: string;
   email: string;
   plan: 'Free' | 'Pro' | 'Enterprise';
+  authProvider?: 'ENTRA' | 'GOOGLE';
   role?: 'user' | 'admin';
   avatar?: string;
 }

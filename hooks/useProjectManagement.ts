@@ -226,11 +226,19 @@ export function useProjectManagement() {
     optimizeActive: async () => {
       if (!project || !activeScenario) return;
       showToast("Otimizando rede via Backend...", "info");
-      const optimizedNodes = await ApiService.optimizeScenario({
-        scenarioId: activeScenario.id, nodes: activeScenario.nodes, params: activeScenario.params, cables: project.cables, ips: project.ipTypes
-      });
-      updateActiveScenario({ nodes: optimizedNodes });
-      showToast("Otimização concluída!", "success");
+      try {
+        const optimizedNodes = await ApiService.optimizeScenario({
+          scenarioId: activeScenario.id,
+          nodes: activeScenario.nodes,
+          params: activeScenario.params,
+          cables: project.cables,
+          ips: project.ipTypes,
+        });
+        updateActiveScenario({ nodes: optimizedNodes });
+        showToast("Otimização concluída!", "success");
+      } catch (e: any) {
+        showToast(e?.message || "Otimização indisponível no seu plano.", "error");
+      }
     },
     runMonteCarlo: async (iterations: number = 1000) => {
       if (!project || !activeScenario) return;

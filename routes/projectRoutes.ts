@@ -3,6 +3,7 @@ import { prisma } from '../utils/db.js';
 import { validate } from '../middlewares/validate.js';
 import { CreateProjectSchema, UpdateProjectSchema } from '../schemas/projectSchemas.js';
 import { HttpError } from '../utils/httpError.js';
+import { enforceFreeProjectLimit } from '../middlewares/planMiddleware.js';
 
 export const projectRoutes = Router();
 
@@ -20,7 +21,7 @@ projectRoutes.get('/', async (req, res, next) => {
   }
 });
 
-projectRoutes.post('/', validate(CreateProjectSchema) as any, async (req, res, next) => {
+projectRoutes.post('/', enforceFreeProjectLimit(3) as any, validate(CreateProjectSchema) as any, async (req, res, next) => {
   try {
     const user = req.user;
     if (!user) return next(new HttpError(401, 'Token não fornecido'));

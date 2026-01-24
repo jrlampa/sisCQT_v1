@@ -1,11 +1,12 @@
 import { Router } from 'express';
 import { authMiddleware } from '../middlewares/authMiddleware.js';
+import { requireProForFeature } from '../middlewares/planMiddleware.js';
 import { GeminiService } from '../services/geminiService.js';
 import { HttpError } from '../utils/httpError.js';
 
 export const geminiRoutes = Router();
 
-geminiRoutes.post('/ask', authMiddleware as any, async (req, res, next) => {
+geminiRoutes.post('/ask', authMiddleware as any, requireProForFeature('Theseus AI') as any, async (req, res, next) => {
   const { prompt, context } = req.body;
   if (!prompt) {
     return next(new HttpError(400, 'Prompt é obrigatório.'));
