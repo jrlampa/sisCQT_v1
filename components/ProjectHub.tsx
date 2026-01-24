@@ -19,6 +19,7 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const isCreatingWelcomeRef = useRef(false);
 
   const WELCOME_NAME = 'Projeto Modelo (WELCOME)';
   const hasWelcomeProject = useMemo(
@@ -40,10 +41,12 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
     if (isImporting) return;
     if (isModalOpen) return;
     if (localStorage.getItem(flagKey) === 'true') return;
+    if (isCreatingWelcomeRef.current) return;
 
     let cancelled = false;
     (async () => {
       try {
+        isCreatingWelcomeRef.current = true;
         const id = await createWelcomeProject();
         if (cancelled) return;
         localStorage.setItem(flagKey, 'true');
@@ -54,6 +57,8 @@ const ProjectHub: React.FC<{ user: User; onLogout: () => void; onBilling: () => 
       } catch (e: any) {
         // se falhar (ex.: constantes indisponíveis), não trava o Hub
         if (cancelled) return;
+      } finally {
+        isCreatingWelcomeRef.current = false;
       }
     })();
 

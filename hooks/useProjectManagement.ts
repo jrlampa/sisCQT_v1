@@ -22,26 +22,58 @@ export function useProjectManagement() {
     profiles: Record<string, any>;
   } | null>(null);
 
-  const reloadFromBackend = useCallback(() => {
-    ApiService.getProjects()
-      .then(setSavedProjects)
-      .catch((err: any) => {
+  // Proteções contra loops em DEV (StrictMode / refresh storms):
+  // - dedup de chamadas simultâneas
+  // - throttle simples para evitar spam de /api/projects
+  const reloadGuardRef = useRef<{ inFlight: boolean; lastStartAt: number }>({ inFlight: false, lastStartAt: 0 });
+
+  const reloadFromBackend = useCallback(async () => {
+    const now = Date.now();
+    // evita rajadas (ex.: múltiplos renders/efeitos em DEV)
+    if (reloadGuardRef.current.inFlight) return;
+    if (now - reloadGuardRef.current.lastStartAt < 750) return;
+
+    reloadGuardRef.current.inFlight = true;
+    reloadGuardRef.current.lastStartAt = now;
+    try {
+      const [projectsRes, constantsRes] = await Promise.allSettled([
+        ApiService.getProjects(),
+        ApiService.getConstants(),
+      ]);
+
+      if (projectsRes.status === 'fulfilled') {
+        setSavedProjects(projectsRes.value);
+      } else {
+        const err: any = projectsRes.reason;
         if (err?.message !== 'Sessão expirada') {
           showToast("Erro ao carregar projetos do servidor", "error");
         }
-      });
+      }
 
-    ApiService.getConstants()
-      .then((c) => setServerConstants({ cables: c.cables, ipTypes: c.ipTypes, dmdiTables: c.dmdiTables, profiles: c.profiles }))
-      .catch(() => {});
+      if (constantsRes.status === 'fulfilled') {
+        const c = constantsRes.value;
+        setServerConstants({ cables: c.cables, ipTypes: c.ipTypes, dmdiTables: c.dmdiTables, profiles: c.profiles });
+      }
+    } finally {
+      reloadGuardRef.current.inFlight = false;
+    }
   }, [showToast]);
 
   // Carregamento inicial do Backend + recarrega ao autenticar/desautenticar
   useEffect(() => {
+    // Em DEV com React.StrictMode, o effect pode rodar 2x (mount -> cleanup -> mount).
+    // Evita duplicar sincronização inicial e/ou tempestade de eventos.
+    let mounted = true;
     reloadFromBackend();
-    const handler = () => reloadFromBackend();
+    const handler = () => {
+      if (!mounted) return;
+      reloadFromBackend();
+    };
     window.addEventListener('sisqat_auth_changed', handler);
-    return () => window.removeEventListener('sisqat_auth_changed', handler);
+    return () => {
+      mounted = false;
+      window.removeEventListener('sisqat_auth_changed', handler);
+    };
   }, [reloadFromBackend]);
 
   const project = useMemo(() => 
