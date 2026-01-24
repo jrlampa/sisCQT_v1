@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 // Evita tratar CI="false"/"0" como true
 const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const workers = Number(process.env.PLAYWRIGHT_WORKERS || (isCI ? 2 : 4));
 
 export default defineConfig({
   testDir: './e2e',
@@ -10,7 +11,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
-  workers: isCI ? 2 : undefined,
+  workers: Number.isFinite(workers) && workers > 0 ? workers : (isCI ? 2 : 4),
   reporter: [
     ['list'],
     ['html', { open: 'never' }],

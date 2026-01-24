@@ -1,7 +1,66 @@
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import { z } from 'zod';
 import { DEFAULT_CABLES, DMDI_TABLES, IP_TYPES } from '../constants.js';
 import { CreateProjectSchema } from '../schemas/projectSchemas.js';
+
+type Workbook = ExcelJS.Workbook;
+type Worksheet = ExcelJS.Worksheet;
+type CellValue = ExcelJS.CellValue;
+
+function cellToPrimitive(v: CellValue): unknown {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') {
+    // Fórmulas: { formula, result }
+    if ('result' in v) return (v as any).result ?? '';
+    // Hyperlink: { text, hyperlink }
+    if ('text' in v) return (v as any).text ?? '';
+    // Rich text: { richText: [{ text }] }
+    if ('richText' in v && Array.isArray((v as any).richText)) {
+      return (v as any).richText.map((p: any) => p?.text ?? '').join('');
+    }
+  }
+  return v as any;
+}
+
+function worksheetToMatrix(sheet: Worksheet, maxRows?: number): any[][] {
+  const out: any[][] = [];
+  const maxCol = Math.max(1, sheet.columnCount || 1);
+  const rowCount = sheet.rowCount || 0;
+  const lastRow = Math.min(rowCount, maxRows ?? rowCount);
+  for (let r = 1; r <= lastRow; r++) {
+    const row = sheet.getRow(r);
+    const arr: any[] = [];
+    for (let c = 1; c <= maxCol; c++) {
+      const cell = row.getCell(c);
+      arr.push(cellToPrimitive(cell.value as any) ?? '');
+    }
+    out.push(arr);
+  }
+  return out;
+}
+
+function worksheetToRowObjects(sheet: Worksheet): Record<string, any>[] {
+  const matrix = worksheetToMatrix(sheet);
+  if (matrix.length === 0) return [];
+  const header = (matrix[0] || []).map((c) => String(c ?? '').trim());
+  const usedKeys = new Set<string>();
+
+  const rows: Record<string, any>[] = [];
+  for (let r = 1; r < matrix.length; r++) {
+    const row = matrix[r] || [];
+    const obj: Record<string, any> = {};
+    for (let c = 0; c < header.length; c++) {
+      const rawKey = header[c];
+      if (!rawKey) continue;
+      let key = rawKey;
+      if (usedKeys.has(key)) key = `${rawKey}_${c + 1}`;
+      obj[key] = row[c] ?? '';
+      usedKeys.add(key);
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
 
 function normalizeHeader(v: unknown): string {
   return String(v ?? '')
@@ -55,17 +114,16 @@ function scoreNodeSheet(headers: string[]): number {
   return score;
 }
 
-function getSheetHeaders(sheet: XLSX.WorkSheet): string[] {
-  const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' }) as any[][];
+function getSheetHeaders(sheet: Worksheet): string[] {
+  const rows = worksheetToMatrix(sheet, 1);
   const firstRow = Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : [];
   return firstRow.map((c) => String(c ?? '').trim()).filter(Boolean);
 }
 
-function pickBestNodeSheet(workbook: XLSX.WorkBook): SheetCandidate | null {
+function pickBestNodeSheet(workbook: Workbook): SheetCandidate | null {
   const candidates: SheetCandidate[] = [];
-  for (const name of workbook.SheetNames) {
-    const sheet = workbook.Sheets[name];
-    if (!sheet) continue;
+  for (const sheet of workbook.worksheets) {
+    const name = sheet.name;
     const headers = getSheetHeaders(sheet);
     if (headers.length === 0) continue;
     candidates.push({ name, headers, score: scoreNodeSheet(headers) });
@@ -79,8 +137,8 @@ const KeyValueSchema = z.object({
   value: z.any(),
 });
 
-function parseKeyValueSheet(sheet: XLSX.WorkSheet): Record<string, unknown> {
-  const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' }) as any[][];
+function parseKeyValueSheet(sheet: Worksheet): Record<string, unknown> {
+  const rows = worksheetToMatrix(sheet);
   const out: Record<string, unknown> = {};
   for (const r of rows) {
     if (!Array.isArray(r) || r.length < 2) continue;
@@ -101,11 +159,9 @@ function normalizeCellText(v: unknown): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function findExpectedNumber(workbook: XLSX.WorkBook, patterns: RegExp[]): number | undefined {
-  for (const name of workbook.SheetNames) {
-    const sheet = workbook.Sheets[name];
-    if (!sheet) continue;
-    const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' }) as any[][];
+function findExpectedNumber(workbook: Workbook, patterns: RegExp[]): number | undefined {
+  for (const sheet of workbook.worksheets) {
+    const rows = worksheetToMatrix(sheet);
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
       if (!Array.isArray(row)) continue;
@@ -142,20 +198,22 @@ export type XlsxImportOutput = {
   };
 };
 
-export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?: Partial<any>): XlsxImportOutput {
-  const workbook = XLSX.read(buffer, { type: 'buffer' });
+export async function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?: Partial<any>): Promise<XlsxImportOutput> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
 
   const defaultCable = Object.keys(DEFAULT_CABLES)[4] || Object.keys(DEFAULT_CABLES)[0] || '3x95+54.6mm² Al';
   const defaultMeters = Number(process.env.IMPORT_XLSX_DEFAULT_METERS || 100);
 
   // Caso especial: planilha "real" no formato por TRECHO (ATUAL/PROJ 01/etc)
-  const scenarioSheetNames = workbook.SheetNames.filter((n) => {
+  const sheetNames = workbook.worksheets.map((s) => s.name);
+  const scenarioSheetNames = sheetNames.filter((n) => {
     const u = String(n).toUpperCase();
     return u === 'ATUAL' || u === 'ATUAL+NC' || u === 'PROJ 01' || u === 'PROJ 02';
   });
 
-  function extractManualClassFromSheet(sheet: XLSX.WorkSheet): 'A' | 'B' | 'C' | 'D' | null {
-    const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' }) as any[][];
+  function extractManualClassFromSheet(sheet: Worksheet): 'A' | 'B' | 'C' | 'D' | null {
+    const rows = worksheetToMatrix(sheet, 50);
     for (let r = 0; r < Math.min(rows.length, 50); r++) {
       const row = rows[r];
       if (!Array.isArray(row)) continue;
@@ -168,8 +226,8 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
     return null;
   }
 
-  function parseTrechoLoadSheet(sheet: XLSX.WorkSheet) {
-    const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' }) as any[][];
+  function parseTrechoLoadSheet(sheet: Worksheet) {
+    const rows = worksheetToMatrix(sheet);
     let headerRowIdx = -1;
     let trechoColIdx = -1;
 
@@ -230,7 +288,8 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
       const row = rows[r];
       if (!Array.isArray(row)) continue;
       const trechoVal = row[trechoColIdx];
-      if (typeof trechoVal !== 'number' || !Number.isFinite(trechoVal)) continue;
+      const trechoNum = toNumber(trechoVal, NaN);
+      if (!Number.isFinite(trechoNum)) continue;
 
       const totalClientesKva = idxTotalClientes !== -1 ? toNumber(row[idxTotalClientes], 0) : 0;
       const mono = idxMono !== undefined ? toNumber(row[idxMono], 0) : 0;
@@ -244,7 +303,7 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
         if (qty > 0) ipCounts[col.label] = qty;
       }
 
-      entries.push({ trecho: Math.floor(trechoVal), totalClientesKva, mono, bi, tri, triEspecial, ipCounts });
+      entries.push({ trecho: Math.floor(trechoNum), totalClientesKva, mono, bi, tri, triEspecial, ipCounts });
     }
 
     return {
@@ -275,7 +334,7 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
     const nodeDistributedKvaByScenario: Record<string, Record<string, number>> = {};
 
     for (const sheetName of scenarioSheetNames) {
-      const sheet = workbook.Sheets[sheetName];
+      const sheet = workbook.getWorksheet(sheetName);
       if (!sheet) continue;
       const parsed = parseTrechoLoadSheet(sheet);
       if (!parsed) continue;
@@ -351,9 +410,10 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
 
       // trafo kVA: tenta ler do CQT correspondente (F3), senão usa 75.
       const cqtName = `CQT ${sheetName}`.toUpperCase();
-      const cqtSheetName = workbook.SheetNames.find((n) => String(n).toUpperCase() === cqtName);
-      const cqtSheet = cqtSheetName ? workbook.Sheets[cqtSheetName] : undefined;
-      const trafoKva = toNumber((cqtSheet as any)?.F3?.v ?? 75, 75);
+      const cqtSheetName = sheetNames.find((n) => String(n).toUpperCase() === cqtName);
+      const cqtSheet = cqtSheetName ? workbook.getWorksheet(cqtSheetName) : undefined;
+      const trafoCell = cqtSheet ? cellToPrimitive(cqtSheet.getCell('F3').value as any) : 75;
+      const trafoKva = toNumber(trafoCell ?? 75, 75);
 
       scenarios.push({
         id: scenarioId,
@@ -394,7 +454,7 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
       return {
         project: validated,
         expected: { nodeDistributedKvaByScenario },
-        debug: { sheetNames: workbook.SheetNames, scenarioSheetsDetected: scenarioSheetNames },
+        debug: { sheetNames, scenarioSheetsDetected: scenarioSheetNames },
       };
     }
   }
@@ -402,14 +462,14 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
   // 1) localizar tabela de nós
   const best = pickBestNodeSheet(workbook);
   if (!best || best.score < 4) {
-    const names = workbook.SheetNames;
+    const names = sheetNames;
     throw new Error(
       `Não foi possível localizar uma aba de rede/nós no XLSX. Abas encontradas: ${names.join(', ') || '(nenhuma)'}`
     );
   }
 
-  const nodeSheet = workbook.Sheets[best.name]!;
-  const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(nodeSheet, { defval: '' });
+  const nodeSheet = workbook.getWorksheet(best.name)!;
+  const rawRows = worksheetToRowObjects(nodeSheet);
 
   const nodes = rawRows
     .map((row: any, idx: number) => {
@@ -467,8 +527,8 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
 
   // 2) tentar capturar metadados/params via abas key-value (best effort)
   const kv: Record<string, unknown> = {};
-  for (const name of workbook.SheetNames) {
-    const sheet = workbook.Sheets[name];
+  for (const name of sheetNames) {
+    const sheet = workbook.getWorksheet(name);
     if (!sheet) continue;
     // Heurística: abas tipo "CAPA/DADOS/PARAM" geralmente são key-value
     const norm = normalizeHeader(name);
@@ -547,7 +607,7 @@ export function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?:
   return {
     project: validated,
     expected,
-    debug: { sheetNames: workbook.SheetNames, nodeSheetPicked: best.name },
+    debug: { sheetNames, nodeSheetPicked: best.name },
   };
 }
 

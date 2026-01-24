@@ -25,7 +25,7 @@ importRoutes.post('/xlsx', upload.single('file'), async (req, res, next) => {
       return next(new HttpError(400, 'Formato inválido. Envie um arquivo .xlsx'));
     }
 
-    const parsed = parseXlsxToProject(file.buffer, file.originalname, {
+    const parsed = await parseXlsxToProject(file.buffer, file.originalname, {
       // Em form-data, campos chegam como string.
       name: typeof (req as any).body?.name === 'string' ? (req as any).body.name : undefined,
     });

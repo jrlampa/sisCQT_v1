@@ -3,7 +3,7 @@ import path from 'node:path';
 import { parseXlsxToProject } from '../services/xlsxImportService';
 import { ElectricalEngine } from '../services/electricalEngine';
 
-function main() {
+async function main() {
   const defaultPath = path.resolve(process.cwd(), 'PD_A052989936_CQT REAL.xlsx');
   const realPath = process.env.REAL_XLSX_PATH || defaultPath;
   if (!fs.existsSync(realPath)) {
@@ -13,7 +13,7 @@ function main() {
   }
 
   const buf = fs.readFileSync(realPath);
-  const parsed = parseXlsxToProject(buf, path.basename(realPath));
+  const parsed = await parseXlsxToProject(buf, path.basename(realPath));
 
   const project = parsed.project;
   const expectedByScenario = parsed.expected?.nodeDistributedKvaByScenario || null;
@@ -62,5 +62,8 @@ function main() {
   process.exit(1);
 }
 
-main();
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});
 

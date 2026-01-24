@@ -11,9 +11,9 @@ describe('XLSX real: importação + verificação de cálculos', () => {
 
   const maybeIt = exists ? it : it.skip;
 
-  maybeIt('deve importar o XLSX e validar carga diversificada por trecho (TOTAL do XLSX)', () => {
+  maybeIt('deve importar o XLSX e validar carga diversificada por trecho (TOTAL do XLSX)', async () => {
     const buf = fs.readFileSync(realPath);
-    const parsed = parseXlsxToProject(buf, path.basename(realPath));
+    const parsed = await parseXlsxToProject(buf, path.basename(realPath));
 
     const project = parsed.project;
     const expectedByScenario = parsed.expected?.nodeDistributedKvaByScenario;
