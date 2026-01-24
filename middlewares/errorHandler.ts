@@ -1,4 +1,4 @@
-import type { NextFunction, Request, Response } from 'express';
+import type { ErrorRequestHandler } from 'express';
 import { ZodError } from 'zod';
 import { HttpError } from '../utils/httpError.js';
 
@@ -30,7 +30,7 @@ function mapPrismaKnownError(err: { code: string; meta?: any }): { status: numbe
  * Resposta padrão:
  * - { success: false, error: string, details?: any }
  */
-export function errorHandler(err: any, req: Request, res: Response, _next: NextFunction) {
+export const errorHandler: ErrorRequestHandler = (err: any, req, res, _next) => {
   const isProd = process.env.NODE_ENV === 'production';
 
   const rootErr = err instanceof HttpError && err.cause !== undefined ? err.cause : err;
@@ -85,5 +85,5 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
   }
 
   return res.status(status).json(body);
-}
+};
 

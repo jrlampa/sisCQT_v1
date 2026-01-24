@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import type { RequestHandler } from 'express';
 import { prisma } from '../utils/db.js';
 import { verifyToken } from '../utils/tokenUtils.js';
 
@@ -6,7 +6,7 @@ import { verifyToken } from '../utils/tokenUtils.js';
  * Middleware de Autenticação Corporativa
  * Suporta modo real (JWT Entra ID) e modo de desenvolvimento (Mock).
  */
-export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+export const authMiddleware: RequestHandler = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
   const isProd = process.env.NODE_ENV === 'production';
 

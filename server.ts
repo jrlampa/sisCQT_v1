@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Request, Response } from 'express';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
@@ -35,7 +36,7 @@ const trustProxy =
         : (trustProxyEnv === 'false'
             ? false
             : (Number.isFinite(Number(trustProxyEnv)) ? Number(trustProxyEnv) : (isProd ? 1 : false))));
-app.set('trust proxy', trustProxy as any);
+app.set('trust proxy', trustProxy);
 
 // Entra-only em produção: falhar cedo se envs obrigatórias não estiverem definidas.
 assertProdAuthConfig();
@@ -84,8 +85,8 @@ app.use((req, res, next) => {
 // Limites de payload (evita abuso e payloads gigantes)
 const jsonBodyLimit = process.env.JSON_BODY_LIMIT || '2mb';
 const urlencodedBodyLimit = process.env.URLENCODED_BODY_LIMIT || '2mb';
-app.use(express.json({ limit: jsonBodyLimit }) as any);
-app.use(express.urlencoded({ extended: true, limit: urlencodedBodyLimit }) as any);
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: urlencodedBodyLimit }));
 
 // Rate limiting básico (principalmente em produção)
 const rateLimitDisabled = process.env.RATE_LIMIT_DISABLED === 'true';
@@ -101,7 +102,7 @@ if (!rateLimitDisabled) {
     handler: (_req, res) => {
       res.status(429).json({ success: false, error: 'Muitas requisições. Tente novamente em instantes.' });
     },
-  }) as any);
+  }));
 }
 
 const PORT = process.env.PORT || 8080;
@@ -109,26 +110,26 @@ const PORT = process.env.PORT || 8080;
 app.use('/api/auth', authRoutes);
 app.use('/api/constants', constantsRoutes);
 app.use('/api', healthRoutes);
-app.use('/api/projects', authMiddleware as any, projectRoutes);
+app.use('/api/projects', authMiddleware, projectRoutes);
 app.use('/api', engineRoutes);
 app.use('/api/gemini', geminiRoutes);
 app.use('/api/gis', gisRoutes);
-app.use('/api/import', authMiddleware as any, importRoutes);
+app.use('/api/import', authMiddleware, importRoutes);
 
 // Static files handling
 // Em dev, `__dirname` aponta para a raiz do repo; em prod, para `dist/server`.
 const staticDir = isProd ? path.resolve(__dirname, '../client') : path.resolve(__dirname);
-app.use(express.static(staticDir) as any);
+app.use(express.static(staticDir));
 
 // SPA Fallback
 // A MUDANÇA É AQUI: Trocámos '*' por /.*/ (Express 5 exige Regex ou sintaxe diferente)
-app.get(/.*/, (req: any, res: any) => {
+app.get(/.*/, (req: Request, res: Response) => {
   if (req.url.startsWith('/api')) return res.status(404).json({ success: false, error: 'API not found' });
   res.sendFile(path.join(staticDir, 'index.html'));
 });
 
 // Error handler (fallback)
-app.use(errorHandler as any);
+app.use(errorHandler);
 
 // Em testes (Vitest), evitamos abrir uma porta / manter handles abertos.
 // O Supertest consegue exercitar o `app` diretamente sem `listen()`.
