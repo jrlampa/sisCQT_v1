@@ -107,13 +107,13 @@ const EditorRow: React.FC<EditorRowProps> = React.memo(({
         )}
       </td>
 
-      <td className="px-6 py-4">
+      <td className="px-6 py-4 min-w-[240px]">
         {!isTrafo && (
           <select
             data-row={rowIndex} data-col={1}
             aria-label="ID do pai"
-            title="ID do pai (obrigatório)"
-            className="w-full bg-white/60 border border-gray-100 px-3 py-2 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-400"
+            title={`Pai atual: ${node.parentId || '—'} (obrigatório)`}
+            className="w-full bg-white border border-gray-200 px-3 py-2 rounded-xl text-xs font-black uppercase text-gray-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             value={availableParentIds.includes(node.parentId) ? node.parentId : 'TRAFO'}
             onChange={e => onUpdateField(node.id, 'parentId', e.target.value.toUpperCase())}
             onKeyDown={e => handleKeyDown(e, 1)}

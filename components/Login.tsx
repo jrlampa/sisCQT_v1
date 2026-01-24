@@ -5,17 +5,12 @@ import { loginRequest } from "../authConfig.ts";
 import { ApiService } from '../services/apiService.ts';
 import { User } from '../types.ts';
 import { useToast } from '../context/ToastContext.tsx';
+import siscqtLogo from '../siscqt_logo.png';
+import im3Logo from '../logoim3.png';
 
 interface LoginProps {
   onLogin: (user: User) => void;
 }
-
-const LogoSisCQT = () => (
-  <div className="flex items-baseline font-black tracking-tighter text-[#004a80] select-none text-4xl">
-    <span className="lowercase">si</span><span className="uppercase">S</span>
-    <span className="uppercase ml-1">C</span><span className="uppercase ml-0.5">Q</span><span className="uppercase ml-0.5">T</span>
-  </div>
-);
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const { instance } = useMsal();
@@ -69,7 +64,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       <div className="glass-dark w-full max-w-md rounded-[40px] p-12 shadow-2xl border border-white/60 relative z-10 text-center animate-in zoom-in-95 duration-500">
         <div className="mb-8 p-6 border-2 border-blue-500/30 rounded-2xl inline-block bg-white/40">
-          <LogoSisCQT />
+          <div className="flex flex-col items-center gap-4">
+            <img
+              src={siscqtLogo}
+              alt="siSCQT"
+              className="h-12 w-auto object-contain"
+            />
+            <div className="flex items-center justify-center gap-3 opacity-80">
+              <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">IM3 Brasil</span>
+              <img
+                src={im3Logo}
+                alt="Logo IM3 Brasil"
+                className="h-7 w-auto object-contain"
+              />
+            </div>
+          </div>
         </div>
         
         <h2 className="text-xl font-black text-gray-800 uppercase tracking-tight mb-2">Engenharia Digital</h2>

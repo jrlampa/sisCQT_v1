@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { useToast } from '../context/ToastContext';
@@ -24,6 +24,10 @@ interface GISMapProps {
   onNodeCreated?: () => void;
 }
 
+type BaseMapId = 'osm' | 'satellite' | 'light';
+
+const BASEMAP_STORAGE_KEY = 'sisqat_gis_basemap';
+
 const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
   useMapEvents({
     click: (e) => {
@@ -36,7 +40,43 @@ const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number
 const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
   const [geoData, setGeoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [baseMapId, setBaseMapId] = useState<BaseMapId>(() => {
+    try {
+      const raw = localStorage.getItem(BASEMAP_STORAGE_KEY);
+      if (raw === 'osm' || raw === 'satellite' || raw === 'light') return raw;
+    } catch {}
+    return 'osm';
+  });
   const { showToast } = useToast();
+
+  const baseMaps = useMemo(() => {
+    return {
+      osm: {
+        label: 'Base (OSM Streets)',
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      },
+      // “GE Pro” e “Google Maps” sem chave/licença: usamos alternativas abertas de mercado.
+      // - satellite: satélite estilo “Google Earth”
+      // - light: estilo “maps” mais limpo
+      satellite: {
+        label: 'GE Pro (Satélite)',
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        attribution: 'Tiles &copy; Esri',
+      },
+      light: {
+        label: 'Google Maps (Estilo)',
+        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+      },
+    } satisfies Record<BaseMapId, { label: string; url: string; attribution: string }>;
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BASEMAP_STORAGE_KEY, baseMapId);
+    } catch {}
+  }, [baseMapId]);
 
   const fetchNodes = async () => {
     try {
@@ -94,16 +134,43 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
           </div>
         </div>
       )}
+
+      {/* Banner de status */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[600] glass-dark px-5 py-3 rounded-2xl border border-white/40">
+        <span className="text-[10px] font-black uppercase tracking-widest text-orange-600">Em desenvolvimento</span>
+        <div className="text-[9px] font-bold text-gray-600 uppercase tracking-widest mt-1">
+          Camadas e integrações GIS ainda em evolução
+        </div>
+      </div>
+
+      {/* Seletor de mapa base */}
+      <div className="absolute top-6 right-6 z-[650] glass-dark p-4 rounded-2xl border border-white/40">
+        <div className="text-[9px] font-black uppercase tracking-widest text-gray-500 mb-2">Mapa base</div>
+        <select
+          aria-label="Selecionar mapa base"
+          className="bg-white/80 border border-gray-200 rounded-xl px-3 py-2 text-[10px] font-black text-gray-800 outline-none"
+          value={baseMapId}
+          onChange={(e) => setBaseMapId(e.target.value as BaseMapId)}
+        >
+          {Object.entries(baseMaps).map(([id, bm]) => (
+            <option key={id} value={id}>
+              {bm.label}
+            </option>
+          ))}
+        </select>
+      </div>
       
       <MapContainer 
-        center={[-22.9068, -43.1729]} 
-        zoom={15} 
+        // Cabo Frio - RJ (padrão)
+        center={[-22.8794, -42.0187]} 
+        zoom={14} 
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          key={baseMapId}
+          url={baseMaps[baseMapId].url}
+          attribution={baseMaps[baseMapId].attribution}
         />
         
         <MapClickHandler onMapClick={handleAddNode} />
