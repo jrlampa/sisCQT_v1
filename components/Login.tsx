@@ -104,7 +104,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             ) : (
               <>
-                <img src="https://docs.microsoft.com/en-us/azure/active-directory/develop/media/howto-add-branding-in-azure-ad-apps/ms-symbollockup_mssymbol_19.png" className="w-5 h-5 group-hover:rotate-12 transition-transform" alt="MS" />
+                {/* Ícone MS inline (evita CSP/img-src externo) */}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  className="w-5 h-5 group-hover:rotate-12 transition-transform"
+                >
+                  <path fill="#F25022" d="M2 2h10v10H2z" />
+                  <path fill="#7FBA00" d="M12 2h10v10H12z" />
+                  <path fill="#00A4EF" d="M2 12h10v10H2z" />
+                  <path fill="#FFB900" d="M12 12h10v10H12z" />
+                </svg>
                 ENTRAR COM MICROSOFT 365
               </>
             )}

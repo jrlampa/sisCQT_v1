@@ -7,6 +7,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import { msalConfig } from "./authConfig.ts";
 import App from './App.tsx';
 import { ToastProvider } from './context/ToastContext.tsx';
+import './index.css';
 
 // Initialize the MSAL instance outside the render loop
 const msalInstance = new PublicClientApplication(msalConfig);

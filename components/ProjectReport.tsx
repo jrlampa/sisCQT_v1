@@ -61,7 +61,9 @@ const ProjectReport: React.FC = () => {
     };
 
     try {
-      // @ts-ignore - html2pdf vem de script externo no index.html
+      // html2pdf.js via bundle (evita depender de CDN e evita bloqueio por CSP)
+      const mod: any = await import('html2pdf.js');
+      const html2pdf = mod?.default || mod;
       await html2pdf().set(opt).from(element).save();
       showToast("Memorial gerado com sucesso!", "success");
     } catch (err) {

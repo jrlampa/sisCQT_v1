@@ -47,6 +47,27 @@ app.use(helmet({
   // Mantém compatibilidade com recursos cross-origin (mapas, assets) no cenário atual.
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
+  // CSP default do Helmet é bem restritivo (script-src 'self') e quebra MSAL/Google GIS + mapas.
+  // Aqui usamos uma CSP allowlist mínima para manter segurança sem bloquear recursos necessários.
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "script-src": ["'self'", "https://accounts.google.com", "https://apis.google.com"],
+      "img-src": ["'self'", "data:", "https:"],
+      "style-src": ["'self'", "https:", "'unsafe-inline'"],
+      "font-src": ["'self'", "https:", "data:"],
+      "connect-src": [
+        "'self'",
+        "https://login.microsoftonline.com",
+        "https://graph.microsoft.com",
+        "https://accounts.google.com",
+        "https://oauth2.googleapis.com",
+        "https://*.supabase.co",
+      ],
+      "frame-src": ["'self'", "https://login.microsoftonline.com", "https://accounts.google.com"],
+    },
+  },
 }));
 app.use(compression());
 
