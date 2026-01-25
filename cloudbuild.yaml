@@ -6,9 +6,12 @@ options:
 
 substitutions:
   _REGION: us-west1
-  _SERVICE: siscqt-enterprise-ai
-  # Ajuste para o seu Artifact Registry (repo `siscqt` no exemplo).
-  _IMAGE: us-west1-docker.pkg.dev/$PROJECT_ID/siscqt/siscqt-enterprise-ai:$SHORT_SHA
+  # Nome do serviço Cloud Run
+  _SERVICE: siscqt-enterprise-ai-deployment-ready
+  # Artifact Registry (repo e nome da imagem). Não usar $PROJECT_ID/$SHORT_SHA aqui:
+  # o Cloud Build NÃO expande variáveis dentro do bloco `substitutions`.
+  _AR_REPO: siscqt
+  _IMAGE_NAME: siscqt-enterprise-ai
   # Se quiser deploy automático, defina _DEPLOY=true no trigger.
   _DEPLOY: "false"
 
@@ -19,13 +22,13 @@ steps:
       - --target
       - prod
       - -t
-      - $_IMAGE
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA
       - .
 
   - name: gcr.io/cloud-builders/docker
     args:
       - push
-      - $_IMAGE
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA
 
   - name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: bash
@@ -37,11 +40,11 @@ steps:
           exit 0
         fi
         gcloud run deploy "${_SERVICE}" \
-          --image "${_IMAGE}" \
+          --image "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA" \
           --region "${_REGION}" \
           --platform managed \
           --quiet
 
 images:
-  - $_IMAGE
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_IMAGE_NAME}:$SHORT_SHA
 

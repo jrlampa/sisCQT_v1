@@ -1,10 +1,9 @@
 name: Docker Image CI
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  # Este workflow só valida que o Dockerfile compila.
+  # Rodamos manualmente para não concorrer com Cloud Build / Cloud Run.
+  workflow_dispatch:
 
 jobs:
 

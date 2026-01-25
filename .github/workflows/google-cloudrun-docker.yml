@@ -30,15 +30,16 @@
 name: 'Build and Deploy to Cloud Run'
 
 on:
-  push:
-    branches:
-      - 'main'
+  # Este workflow exige Workload Identity Federation configurado.
+  # Para evitar falhas constantes por placeholders, deixamos manual.
+  workflow_dispatch:
 
 env:
-  PROJECT_ID: 'my-project' # TODO: update to your Google Cloud project ID
-  REGION: 'us-west1' # TODO: update to your region
-  SERVICE: 'my-service' # TODO: update to your service name
-  WORKLOAD_IDENTITY_PROVIDER: 'projects/123456789/locations/global/workloadIdentityPools/my-pool/providers/my-provider' # TODO: update to your workload identity provider
+  PROJECT_ID: 'gen-lang-client-0477751091'
+  REGION: 'us-west1'
+  SERVICE: 'siscqt-enterprise-ai-deployment-ready'
+  # IMPORTANTE: você precisa preencher com o provider real (senão o auth falha).
+  WORKLOAD_IDENTITY_PROVIDER: 'CHANGE_ME'
 
 jobs:
   deploy:
