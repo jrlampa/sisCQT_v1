@@ -16,6 +16,24 @@ substitutions:
   _DEPLOY: "false"
 
 steps:
+  # Garante que o repositório do Artifact Registry exista (senão o push falha com "Repository not found").
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        echo "Verificando Artifact Registry repo '${_AR_REPO}' em ${_REGION}..."
+        if gcloud artifacts repositories describe "${_AR_REPO}" --location "${_REGION}" >/dev/null 2>&1; then
+          echo "Repo '${_AR_REPO}' OK."
+        else
+          echo "Repo '${_AR_REPO}' não existe. Criando..."
+          gcloud artifacts repositories create "${_AR_REPO}" \
+            --location "${_REGION}" \
+            --repository-format docker \
+            --description "Repo Docker para o siSCQT (Cloud Build/Run)"
+          echo "Repo '${_AR_REPO}' criado."
+        fi
+
   - name: gcr.io/cloud-builders/docker
     args:
       - build
