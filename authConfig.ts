@@ -40,5 +40,7 @@ export const msalConfig: Configuration = {
 
 // Escopos necessários para autenticação e leitura de perfil básico
 export const loginRequest = {
-    scopes: ["User.Read", "openid", "profile"]
+    // Para autenticar e obter claims de identidade (sem depender do Microsoft Graph).
+    // Isso evita tokens com audience do Graph (que não servem para validar no backend).
+    scopes: ["openid", "profile", "email"]
 };

@@ -13,6 +13,7 @@ process.env.ENABLE_ENGINE_WORKER = 'false';
 function prismaMockFactory() {
   return {
     prisma: mockDeep<PrismaClient>({
+      $transaction: vi.fn().mockImplementation(async (ops: any[]) => Promise.all(ops)),
       project: {
         create: vi.fn().mockImplementation((args) => {
           const { name, metadata, userId } = args.data;
@@ -54,6 +55,7 @@ function prismaMockFactory() {
             reportConfig: {},
           },
         ]),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 } as any),
       },
       user: {
         upsert: vi.fn().mockResolvedValue({
@@ -65,6 +67,11 @@ function prismaMockFactory() {
           updatedAt: new Date(),
           projects: [],
         }),
+        delete: vi.fn().mockResolvedValue({ id: 'test-user-id' } as any),
+      },
+      subscription: {
+        findMany: vi.fn().mockResolvedValue([] as any),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 } as any),
       },
     }),
   };
