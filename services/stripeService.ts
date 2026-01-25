@@ -6,7 +6,8 @@ export function getStripe(): Stripe {
   if (cachedStripe) return cachedStripe;
   const key = (process.env.STRIPE_SECRET_KEY || '').trim();
   if (!key) throw new Error('Variável de ambiente ausente: STRIPE_SECRET_KEY');
-  cachedStripe = new Stripe(key, { apiVersion: '2024-06-20' });
+  // Mantemos a versão default do SDK para evitar incompatibilidade de tipos entre releases.
+  cachedStripe = new Stripe(key);
   return cachedStripe;
 }
 

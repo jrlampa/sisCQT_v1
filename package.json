@@ -14,6 +14,7 @@
     "build:client": "vite build",
     "build:server": "prisma generate && tsc -p tsconfig.server.json",
     "build": "npm run build:client && npm run build:server",
+    "gcp-build": "npm run build",
     "db:push": "npx prisma db push",
     "migrate:deploy": "prisma migrate deploy",
     "test:unit": "vitest",

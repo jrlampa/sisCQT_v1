@@ -200,7 +200,8 @@ export type XlsxImportOutput = {
 
 export async function parseXlsxToProject(buffer: Buffer, fileName: string, overrides?: Partial<any>): Promise<XlsxImportOutput> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer);
+  // Tipos do ExcelJS + Buffer genérico (Node) podem divergir em TS; em runtime funciona.
+  await workbook.xlsx.load(buffer as any);
 
   const defaultCable = Object.keys(DEFAULT_CABLES)[4] || Object.keys(DEFAULT_CABLES)[0] || '3x95+54.6mm² Al';
   const defaultMeters = Number(process.env.IMPORT_XLSX_DEFAULT_METERS || 100);

@@ -136,7 +136,9 @@ billingRoutes.post('/webhook', async (req, res, next) => {
       if (userId && subscriptionId) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         const priceId = sub.items.data[0]?.price?.id || null;
-        const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+        // Algumas versões do SDK/types podem não expor `current_period_end` de forma tipada.
+        // Mantemos o campo opcional no DB, mas não dependemos dele para o MVP.
+        const currentPeriodEnd = null;
 
         await prisma.subscription.upsert({
           where: { subscriptionId },
@@ -171,7 +173,7 @@ billingRoutes.post('/webhook', async (req, res, next) => {
       const subscriptionId = sub.id;
 
       const priceId = sub.items.data[0]?.price?.id || null;
-      const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+      const currentPeriodEnd = null;
       const customerId = typeof sub.customer === 'string' ? sub.customer : null;
       const status = sub.status;
 
