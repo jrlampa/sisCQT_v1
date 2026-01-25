@@ -8,6 +8,9 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Para migrations/DDL, use conexão direta (sem pooler transaction).
+  // Em Supabase: apontar para Direct ou Session pooler (5432).
+  directUrl = env("DIRECT_URL")
 }
 
 enum UserPlan {
