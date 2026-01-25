@@ -11,6 +11,13 @@ function isIm3(email: string): boolean {
   return email.toLowerCase().endsWith('@im3brasil.com.br');
 }
 
+function getTosMetadata(): { tosVersion: string; tosUpdatedAt: string } {
+  const fallback = '2026-01-25';
+  const tosVersion = (process.env.LEGAL_TOS_VERSION || '').trim() || fallback;
+  const tosUpdatedAt = (process.env.LEGAL_TOS_UPDATED_AT || '').trim() || tosVersion || fallback;
+  return { tosVersion, tosUpdatedAt };
+}
+
 billingRoutes.get('/status', authMiddleware as any, async (req, res, next) => {
   try {
     const user = req.user;
@@ -50,6 +57,7 @@ billingRoutes.post('/checkout', authMiddleware as any, async (req, res, next) =>
     const stripe = getStripe();
     const baseUrl = getAppBaseUrl();
     const priceId = getStripePriceIdPro();
+    const { tosVersion, tosUpdatedAt } = getTosMetadata();
 
     // Garantir customer
     let customerId = (user as any).stripeCustomerId as string | null | undefined;
@@ -73,9 +81,11 @@ billingRoutes.post('/checkout', authMiddleware as any, async (req, res, next) =>
       success_url: `${baseUrl}/billing?success=1`,
       cancel_url: `${baseUrl}/billing?canceled=1`,
       subscription_data: {
-        metadata: { userId: user.id },
+        metadata: { userId: user.id, tosVersion, tosUpdatedAt },
       },
-      metadata: { userId: user.id, plan: 'Pro' },
+      // Clickwrap mínimo: exigir aceite dos Termos no Checkout.
+      consent_collection: { terms_of_service: 'required' },
+      metadata: { userId: user.id, plan: 'Pro', tosVersion, tosUpdatedAt },
       allow_promotion_codes: true,
     });
 

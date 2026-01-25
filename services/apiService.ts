@@ -58,7 +58,10 @@ export class ApiService {
       const response = await fetch(`${API_BASE}${path}`, { ...options, headers, signal: controller.signal });
       
       if (response.status === 401) {
-        if (!window.location.pathname.includes('/login')) {
+        // Permite páginas públicas (LGPD/Termos) sem redirecionar.
+        const publicPaths = ['/login', '/privacy', '/terms'];
+        const isPublicPath = publicPaths.some((p) => window.location.pathname === p || window.location.pathname.startsWith(`${p}/`));
+        if (!isPublicPath) {
             localStorage.removeItem(TOKEN_KEY);
             this.notifyAuthChanged();
             window.location.href = '/login';

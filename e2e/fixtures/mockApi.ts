@@ -136,6 +136,32 @@ export async function installMockApi(page: Page) {
       return json(route, 200, { url: 'https://example.com/stripe-portal' });
     }
 
+    // Privacy (LGPD) (requires auth)
+    if (pathname === '/api/privacy/export' && method === 'GET') {
+      if (!hasAuth(request)) return json(route, 401, { success: false, error: 'Token não fornecido' });
+      return json(route, 200, {
+        exportedAt: '2026-01-25T00:00:00.000Z',
+        app: { name: 'siSCQT Enterprise AI', environment: 'test' },
+        user,
+        data: {
+          projects: Array.from(projectsById.values()),
+          subscriptions: [{ provider: 'stripe', status: 'active', userId: user.id, subscriptionId: 'sub_123' }],
+        },
+        processors: [
+          'Supabase (PostgreSQL + PostGIS)',
+          'Microsoft Entra ID (autenticação)',
+          'Google (autenticação, quando habilitado)',
+          'Stripe (assinaturas/pagamentos, quando habilitado)',
+        ],
+      });
+    }
+    if (pathname === '/api/privacy/delete' && method === 'POST') {
+      if (!hasAuth(request)) return json(route, 401, { success: false, error: 'Token não fornecido' });
+      const body = readJsonBody(request);
+      if (!body?.confirm) return json(route, 400, { success: false, error: 'Confirmação obrigatória.' });
+      return json(route, 200, { success: true });
+    }
+
     // Public constants
     if (pathname === '/api/constants' && method === 'GET') {
       return json(route, 200, constants);

@@ -57,6 +57,38 @@ O middleware de erro (`middlewares/errorHandler.ts`) loga:
   - confirme que `npm run build` gerou `dist/client`
   - confirme que o runtime está servindo `dist/client` (via `NODE_ENV=production`)
 
+### Cloud Run: login sem estilo / CSS não carregando
+
+Sintoma comum: ao abrir o app (ex.: tela de login) a UI aparece “sem estilo” e/ou não existe referência a `/assets/index-*.css` no HTML.
+
+Isso normalmente indica que o serviço está rodando uma revisão antiga (ex.: dependente de Tailwind via CDN) ou que o build do client não está sendo servido do `dist/client`.
+
+**Checklist (diagnóstico rápido):**
+
+- **View Source** da página deve conter um `<link ... href="/assets/index-...css">`.
+- Em **Network**, `GET /assets/index-*.css` deve retornar **200/304**.
+- O conteúdo do CSS deve conter classes utilitárias esperadas (ex.: `.flex`, `.h-12`, etc.).
+- Se houver CSP, confirme que o CSS é **mesma origem** (sem depender de CDN externo).
+
+**Ação recomendada (redeploy no Cloud Run):**
+
+- No Cloud Console (Cloud Run):
+  - Abra o serviço **`siscqt-enterprise-ai-hejziufdkq-uw`**
+  - Selecione **Deploy new revision**
+  - Escolha a **imagem mais recente** construída a partir do `origin/main` (pipeline CI/CD)
+  - Implante e aguarde a nova revisão ficar **100%** servindo tráfego
+- Via `gcloud` (exemplo; ajuste `REGION` e `IMAGE` conforme seu projeto):
+
+```bash
+gcloud run deploy siscqt-enterprise-ai-hejziufdkq-uw ^
+  --image "IMAGE" ^
+  --region "REGION" ^
+  --platform managed ^
+  --allow-unauthenticated
+```
+
+Após o redeploy, repita o checklist acima (principalmente o `<link ... /assets/index-*.css>` e o 200/304 do CSS).
+
 ## Testes operacionais
 
 - Rodar suíte completa: `npm test`

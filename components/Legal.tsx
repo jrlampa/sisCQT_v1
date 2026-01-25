@@ -6,6 +6,7 @@ type LegalKind = 'privacy' | 'terms';
 const companyName = import.meta.env.VITE_LEGAL_COMPANY_NAME || 'IM3 Projetos e Serviços LTDA';
 const privacyContact = import.meta.env.VITE_PRIVACY_CONTACT_EMAIL || 'privacidade@im3brasil.com.br';
 const lastUpdated = import.meta.env.VITE_LEGAL_LAST_UPDATED || '2026-01-25';
+const tosVersion = import.meta.env.VITE_LEGAL_TOS_VERSION || lastUpdated;
 
 export const Legal: React.FC<{ kind: LegalKind }> = ({ kind }) => {
   const title = kind === 'privacy' ? 'Política de Privacidade (LGPD)' : 'Termos de Uso';
@@ -36,6 +37,14 @@ export const Legal: React.FC<{ kind: LegalKind }> = ({ kind }) => {
             </p>
 
             <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Controlador e contato</h2>
+              <p>
+                O controlador dos dados pessoais tratados no âmbito do siSCQT é o <strong>{companyName}</strong>. Para
+                solicitações sobre privacidade (titular/DSR), contate <strong>{privacyContact}</strong>.
+              </p>
+            </section>
+
+            <section>
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Quais dados tratamos</h2>
               <ul className="list-disc pl-6 space-y-2">
                 <li><strong>Conta</strong>: e-mail e nome (quando fornecido pelo provedor de login).</li>
@@ -56,11 +65,42 @@ export const Legal: React.FC<{ kind: LegalKind }> = ({ kind }) => {
             </section>
 
             <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Bases legais (LGPD)</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>Execução de contrato</strong>: viabilizar acesso, uso do editor e gerenciamento da conta.
+                </li>
+                <li>
+                  <strong>Cumprimento de obrigações</strong> e <strong>faturamento</strong>: gestão de assinatura e emissão/controle
+                  de cobranças quando aplicável.
+                </li>
+                <li>
+                  <strong>Legítimo interesse</strong>: segurança, prevenção a fraudes/abusos, logs de operação e melhoria do serviço,
+                  observados direitos e expectativas do titular.
+                </li>
+              </ul>
+            </section>
+
+            <section>
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Compartilhamento</h2>
               <p>
                 O app pode compartilhar dados estritamente necessários com provedores/operadores como Microsoft (Entra ID),
                 Google (login), Stripe (assinaturas), e Supabase (banco de dados). Cada provedor possui suas próprias
                 políticas e medidas de segurança.
+              </p>
+              <p className="mt-3">
+                <strong>Stripe como operador</strong>: quando o plano Pro está habilitado, pagamentos e cobrança são processados pela
+                Stripe. O siSCQT <strong>não armazena dados de cartão</strong>; apenas identificadores/status de assinatura
+                (por exemplo, <em>customerId</em>, <em>subscriptionId</em>).
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Transferência internacional</h2>
+              <p>
+                Alguns provedores podem armazenar/processar dados fora do Brasil (por exemplo, infraestrutura de nuvem e
+                serviços de autenticação/pagamento). Adotamos medidas técnicas e contratuais compatíveis com esse cenário,
+                na medida aplicável.
               </p>
             </section>
 
@@ -87,6 +127,26 @@ export const Legal: React.FC<{ kind: LegalKind }> = ({ kind }) => {
             </p>
 
             <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Natureza da ferramenta (apoio)</h2>
+              <p>
+                O siSCQT é uma <strong>ferramenta de apoio</strong> ao trabalho técnico. Os resultados (cálculos, relatórios,
+                diagramas e recomendações) são produzidos a partir de entradas do usuário e regras/heurísticas do sistema e
+                devem ser <strong>revisados e validados</strong> por profissional habilitado antes de qualquer uso em projeto,
+                obra ou operação.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Responsabilidade técnica e ART</h2>
+              <p>
+                A responsabilidade técnica pelos projetos, memoriais, dimensionamentos e decisões de engenharia permanece
+                integralmente com o <strong>engenheiro responsável</strong> e/ou organização contratante. Quando aplicável,
+                é obrigação do responsável emitir/registrar a <strong>ART/RRT</strong> correspondente, bem como observar normas
+                técnicas e requisitos legais.
+              </p>
+            </section>
+
+            <section>
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Uso permitido</h2>
               <ul className="list-disc pl-6 space-y-2">
                 <li>Uso legítimo e conforme as funcionalidades disponibilizadas.</li>
@@ -102,10 +162,44 @@ export const Legal: React.FC<{ kind: LegalKind }> = ({ kind }) => {
             </section>
 
             <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Planos e modelo híbrido</h2>
+              <ul className="list-disc pl-6 space-y-2">
+                <li>
+                  <strong>Enterprise</strong>: geralmente contratado por organização, com condições específicas em contrato
+                  (por exemplo, <em>MSA</em>/SOW). Em caso de conflito, prevalecem as condições contratuais.
+                </li>
+                <li>
+                  <strong>Pro (avulso)</strong>: assinatura individual/processada via Stripe. A contratação e o uso estão sujeitos
+                  a estes Termos e à Política de Privacidade.
+                </li>
+              </ul>
+              <p className="mt-3 text-xs text-gray-500">
+                Versão dos Termos: <strong>{tosVersion}</strong>.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Pagamentos (quando aplicável)</h2>
+              <p>
+                Quando habilitado, o plano Pro é cobrado via Stripe. O siSCQT não armazena dados de cartão; apenas dados de
+                referência da assinatura e status para habilitar/desabilitar recursos.
+              </p>
+            </section>
+
+            <section>
               <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Disponibilidade</h2>
               <p>
                 O serviço é fornecido “como está”, podendo sofrer manutenções e evoluções. Buscamos boas práticas de segurança
                 e disponibilidade, mas não garantimos operação ininterrupta.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-3">Limitação de responsabilidade</h2>
+              <p>
+                Na extensão máxima permitida pela legislação aplicável, o <strong>{companyName}</strong> não será responsável
+                por perdas indiretas, lucros cessantes, danos consequentes, ou por resultados decorrentes de uso indevido,
+                dados de entrada incorretos, ausência de validação técnica, ou não observância de normas e requisitos legais.
               </p>
             </section>
 
