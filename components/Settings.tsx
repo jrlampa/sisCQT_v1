@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { Project, ReportConfig } from '../types';
 import { useProject } from '../context/ProjectContext';
 import { useToast } from '../context/ToastContext';
+import { PrivacyActions } from './PrivacyActions.tsx';
 
 const ENERGY_PRICE_STORAGE_KEY = 'sisqat_energy_price_brl_kwh';
 const DEFAULT_ENERGY_PRICE_BRL_KWH = 0.85;
@@ -99,6 +100,11 @@ const Settings: React.FC = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* LGPD / Privacidade */}
+        <div className="lg:col-span-2">
+          <PrivacyActions />
+        </div>
+
         {/* Parâmetros de Sustentabilidade */}
         <section className="glass-dark rounded-[32px] p-8 border border-white/50 shadow-sm lg:col-span-2">
           <h3 className="font-bold text-gray-700 text-sm uppercase tracking-widest mb-6 flex items-center gap-2">

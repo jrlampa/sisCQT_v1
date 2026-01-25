@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import Login from '../Login';
 import { useMsal } from '@azure/msal-react';
 import { ApiService } from '../../services/apiService'; // Import ApiService to mock it
+import { MemoryRouter } from 'react-router-dom';
 
 // Mock do Google Login para não depender de provider/context
 vi.mock('@react-oauth/google', () => ({
@@ -47,10 +48,9 @@ describe('Login Component', () => {
     });
 
     render(
-      // The MsalProvider is now a simple div in the mock
-      <div>
+      <MemoryRouter>
         <Login onLogin={() => {}} />
-      </div>
+      </MemoryRouter>
     );
 
     // Check for the main title and subtitle
@@ -86,9 +86,9 @@ describe('Login Component', () => {
     });
 
     render(
-        <div>
-          <Login onLogin={() => {}} />
-        </div>
+      <MemoryRouter>
+        <Login onLogin={() => {}} />
+      </MemoryRouter>
     );
 
     const loginButton = screen.getByRole('button', { name: /ENTRAR COM MICROSOFT 365/i });

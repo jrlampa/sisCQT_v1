@@ -15,6 +15,7 @@ import GISView from './components/GISView.tsx';
 import SustainabilityDashboard from './components/SustainabilityDashboard.tsx';
 import SolarDashboard from './components/SolarDashboard.tsx';
 import ProtectedRoute from './components/ProtectedRoute.tsx';
+import { Legal } from './components/Legal.tsx';
 import { User } from './types.ts';
 import { useToast } from './context/ToastContext.tsx';
 
@@ -141,6 +142,8 @@ const App: React.FC = () => {
     <ProjectProvider>
       <Routes>
         <Route path="/login" element={currentUser ? <Navigate to="/hub" /> : <Login onLogin={handleLogin} />} />
+        <Route path="/privacy" element={<Legal kind="privacy" />} />
+        <Route path="/terms" element={<Legal kind="terms" />} />
         <Route element={<ProtectedRoute user={currentUser} isLoading={isAuthLoading} />}>
           <Route path="/hub" element={
             <ProjectHub 

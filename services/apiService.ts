@@ -189,6 +189,17 @@ export class ApiService {
     return this.request<{ url: string | null }>('/billing/portal', { method: 'POST' });
   }
 
+  static async privacyExport(): Promise<any> {
+    return this.request<any>('/privacy/export', { method: 'GET' });
+  }
+
+  static async privacyDeleteAccount(): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/privacy/delete', {
+      method: 'POST',
+      body: JSON.stringify({ confirm: true }),
+    });
+  }
+
   static async runMonteCarlo(payload: {
     scenarioId: string;
     nodes: any[];

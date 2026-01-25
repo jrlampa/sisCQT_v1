@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { User } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
+import { PrivacyActions } from './PrivacyActions.tsx';
 
 interface BillingProps {
   user: User;
@@ -176,6 +177,8 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
            </button>
          )}
       </div>
+
+      <PrivacyActions compact />
     </div>
   );
 };

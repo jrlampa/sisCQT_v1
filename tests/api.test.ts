@@ -161,6 +161,59 @@ describe('API Endpoint Tests', () => {
     });
   });
 
+  describe('LGPD endpoints', () => {
+    it('GET /api/privacy/export deve retornar 401 sem token', async () => {
+      const res = await request(app).get('/api/privacy/export');
+      expect(res.status).toBe(401);
+      expect(res.body).toMatchObject({ success: false });
+    });
+
+    it('GET /api/privacy/export deve retornar 200 com token mock', async () => {
+      // @ts-ignore
+      prisma.subscription.findMany.mockResolvedValueOnce([
+        { id: 'sub-1', provider: 'stripe', status: 'active', userId: mockUser.id, subscriptionId: 'sub_stripe_1' },
+      ]);
+
+      const res = await request(app)
+        .get('/api/privacy/export')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(res.body).toHaveProperty('exportedAt');
+      expect(res.body).toHaveProperty('user.email', mockUser.email);
+      expect(res.body).toHaveProperty('data.projects');
+      expect(Array.isArray(res.body.data.projects)).toBe(true);
+      expect(res.body.data.projects[0].id).toBe(mockProject.id);
+      expect(res.body).toHaveProperty('data.subscriptions');
+      expect(Array.isArray(res.body.data.subscriptions)).toBe(true);
+    });
+
+    it('POST /api/privacy/delete deve exigir confirmação', async () => {
+      const res = await request(app)
+        .post('/api/privacy/delete')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({});
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ success: false, error: 'Dados inválidos.' });
+    });
+
+    it('POST /api/privacy/delete deve retornar 200 com confirmação', async () => {
+      // @ts-ignore
+      prisma.subscription.deleteMany.mockResolvedValueOnce({ count: 1 });
+      // @ts-ignore
+      prisma.project.deleteMany.mockResolvedValueOnce({ count: 1 });
+      // @ts-ignore
+      prisma.user.delete.mockResolvedValueOnce({ id: mockUser.id });
+
+      const res = await request(app)
+        .post('/api/privacy/delete')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ confirm: true })
+        .expect(200);
+      expect(res.body).toMatchObject({ success: true });
+    });
+  });
+
   describe('Health endpoints', () => {
     it('GET /api/healthz deve retornar 200', async () => {
       const res = await request(app).get('/api/healthz').expect(200);

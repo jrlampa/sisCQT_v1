@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useMsal } from "@azure/msal-react";
 import { GoogleLogin } from '@react-oauth/google';
 import { loginRequest } from "../authConfig.ts";
@@ -41,8 +42,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       // Execute the login popup flow
       const loginResponse = await instance.loginPopup(loginRequest);
       
-      // Send the access token to the backend for verification and profile synchronization
-      const user = await ApiService.syncUser(loginResponse.accessToken);
+      // Entra ID: use ID token para validar no backend (aud = clientId).
+      // O accessToken frequentemente é emitido para Microsoft Graph (aud=0000...), e falha na verificação do backend.
+      const token = (loginResponse as any).idToken || loginResponse.accessToken;
+      const user = await ApiService.syncUser(token);
       
       onLogin(user);
       showToast(`Bem-vindo, ${user.name}!`, "success");
@@ -71,6 +74,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               src={siscqtLogo}
               alt="siSCQT"
               className="h-12 w-auto object-contain"
+              // Fallback se o CSS não carregar (evita logo gigante)
+              style={{ maxWidth: 260, height: 'auto' }}
             />
             <div className="flex items-center justify-center gap-3 opacity-80">
               <span className="text-[8px] font-black uppercase tracking-widest text-gray-500">IM3 Brasil</span>
@@ -78,6 +83,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 src={im3Logo}
                 alt="Logo IM3 Brasil"
                 className="h-7 w-auto object-contain"
+                style={{ maxWidth: 140, height: 'auto' }}
               />
             </div>
           </div>
@@ -165,6 +171,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <p className="mt-8 text-[9px] text-gray-400 font-bold uppercase tracking-widest">
           Acesso restrito ao domínio @im3brasil.com.br
         </p>
+
+        <div className="mt-6 text-[10px] text-gray-500 font-medium">
+          Ao continuar, você concorda com os nossos{' '}
+          <Link to="/terms" className="text-blue-700 font-black hover:underline">Termos</Link>{' '}
+          e a{' '}
+          <Link to="/privacy" className="text-blue-700 font-black hover:underline">Política de Privacidade (LGPD)</Link>.
+        </div>
       </div>
     </div>
   );
