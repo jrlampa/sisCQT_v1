@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Prisma (clients gerados)
+prisma/generated/
+
 # Playwright
 playwright-report/
 test-results/
@@ -34,3 +37,6 @@ test-results/
 *.sw?
 cqt.xlsx
 PD_A052989936_CQT REAL.xlsx
+
+sisCQT_v1_desktop/
+

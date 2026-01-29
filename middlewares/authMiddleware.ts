@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { prisma } from '../utils/db.js';
-import { verifyToken } from '../utils/tokenUtils.js';
+import { verifyLocalSessionToken, verifyToken } from '../utils/tokenUtils.js';
 
 /**
  * Middleware de Autenticação Corporativa
@@ -41,6 +41,30 @@ export const authMiddleware: RequestHandler = async (req, res, next) => {
   const token = authHeader.split(' ')[1];
 
   try {
+    // 1) Sessão local (offline-first): tenta validar primeiro para não depender de Entra/Google.
+    try {
+      const localDecoded = await verifyLocalSessionToken(token);
+      if (localDecoded) {
+        const sub = typeof localDecoded.sub === 'string' ? localDecoded.sub : '';
+        const rawEmail = String((localDecoded as any).email || '').toLowerCase();
+
+        const user =
+          sub
+            ? await prisma.user.findUnique({ where: { id: sub } })
+            : (rawEmail ? await prisma.user.findUnique({ where: { email: rawEmail } }) : null);
+
+        if (!user) {
+          return res.status(401).json({ success: false, error: 'Sessão local inválida: usuário não encontrado.' });
+        }
+
+        req.user = user;
+        return next();
+      }
+    } catch {
+      // não é token local válido → segue fluxo Entra/Google
+    }
+
+    // 2) Token corporativo/Google (online)
     const decoded = await verifyToken(token);
 
     if (!decoded || (!decoded.upn && !decoded.email && !decoded.preferred_username && !decoded.sub)) {

@@ -4,6 +4,7 @@ import { User } from '../types';
 import { ApiService } from '../services/apiService';
 import { useToast } from '../context/ToastContext';
 import { PrivacyActions } from './PrivacyActions.tsx';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 interface BillingProps {
   user: User;
@@ -12,11 +13,13 @@ interface BillingProps {
 
 const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
   const { showToast } = useToast();
+  const isOnline = useOnlineStatus();
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ plan: User['plan']; authProvider?: User['authProvider']; subscription: any | null } | null>(null);
 
   const isIm3 = useMemo(() => user.email.toLowerCase().endsWith('@im3brasil.com.br'), [user.email]);
   const provider = (status?.authProvider || user.authProvider || (isIm3 ? 'ENTRA' : 'GOOGLE')) as 'ENTRA' | 'GOOGLE';
+  const requiresInternetForBilling = provider === 'GOOGLE';
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +75,10 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
       showToast('Conta corporativa: acesso irrestrito (sem cobrança).', 'info');
       return;
     }
+    if (!isOnline) {
+      showToast('Você está offline. Assinatura/checkout via Stripe requer internet.', 'warning');
+      return;
+    }
     if (planId !== 'Pro') {
       showToast('Para avulsos, apenas o plano Pro é assinado via pagamento.', 'info');
       return;
@@ -89,6 +96,10 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
   };
 
   const handlePortal = async () => {
+    if (!isOnline) {
+      showToast('Você está offline. O portal de assinatura requer internet.', 'warning');
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await ApiService.billingPortal();
@@ -109,6 +120,12 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
           {provider === 'ENTRA' ? 'Acesso corporativo IM3 (sem cobrança).' : 'Assinatura para usuários avulsos via Stripe/Google Pay.'}
         </p>
       </header>
+
+      {requiresInternetForBilling && !isOnline && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-6 py-4 text-sm font-bold">
+          Offline: recursos de cobrança (Stripe/checkout/portal) ficam indisponíveis. Conecte-se à internet para assinar ou gerenciar a assinatura.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {plans.map((p) => (
@@ -140,14 +157,18 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
 
             <button 
               onClick={() => handleUpgrade(p.id)}
-              disabled={isLoading || user.plan === p.id || (provider !== 'GOOGLE' && p.id !== user.plan)}
+              disabled={(requiresInternetForBilling && !isOnline) || isLoading || user.plan === p.id || (provider !== 'GOOGLE' && p.id !== user.plan)}
               className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${
-                user.plan === p.id || isLoading
+                user.plan === p.id || isLoading || (requiresInternetForBilling && !isOnline)
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                 : `${p.color} ${p.textColor} shadow-xl hover:scale-105`
               }`}
             >
-              {user.plan === p.id ? 'Plano Atual' : (p.id === 'Pro' && provider === 'GOOGLE' ? 'Assinar Pro' : 'Indisponível')}
+              {user.plan === p.id
+                ? 'Plano Atual'
+                : ((requiresInternetForBilling && !isOnline)
+                    ? 'Indisponível offline'
+                    : (p.id === 'Pro' && provider === 'GOOGLE' ? 'Assinar Pro' : 'Indisponível'))}
             </button>
           </div>
         ))}
@@ -170,8 +191,8 @@ const Billing: React.FC<BillingProps> = ({ user, onUpdatePlan }) => {
          {provider === 'GOOGLE' && (
            <button
              onClick={handlePortal}
-             disabled={isLoading}
-             className={`text-blue-600 font-black text-xs uppercase tracking-widest hover:bg-blue-50 px-6 py-3 rounded-xl transition-all ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+             disabled={(requiresInternetForBilling && !isOnline) || isLoading}
+             className={`text-blue-600 font-black text-xs uppercase tracking-widest hover:bg-blue-50 px-6 py-3 rounded-xl transition-all ${((requiresInternetForBilling && !isOnline) || isLoading) ? 'opacity-60 cursor-not-allowed' : ''}`}
            >
              Gerenciar Assinatura
            </button>

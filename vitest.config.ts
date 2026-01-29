@@ -12,7 +12,9 @@ export default defineConfig({
     minThreads: 1,
     maxThreads: 2,
     exclude: [
-      'e2e/**',
+      '**/e2e/**',
+      '**/*.e2e.spec.*',
+      'sisCQT_v1_desktop/**',
       'node_modules/**',
       'dist/**',
       'playwright-report/**',

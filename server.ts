@@ -4,7 +4,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
+import type { Server as HttpServer } from 'http';
 import { authRoutes } from './routes/authRoutes.js';
 import { constantsRoutes } from './routes/constantsRoutes.js';
 import { projectRoutes } from './routes/projectRoutes.js';
@@ -15,6 +16,7 @@ import { healthRoutes } from './routes/healthRoutes.js';
 import { importRoutes } from './routes/importRoutes.js';
 import { billingRoutes } from './routes/billingRoutes.js';
 import { privacyRoutes } from './routes/privacyRoutes.js';
+import { tilesRoutes } from './routes/tilesRoutes.js';
 import { authMiddleware } from './middlewares/authMiddleware.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { assertProdAuthConfig } from './utils/tokenUtils.js';
@@ -130,6 +132,8 @@ if (!rateLimitDisabled) {
     max: Number.isFinite(max) && max > 0 ? max : (isProd ? 300 : 1000),
     standardHeaders: true,
     legacyHeaders: false,
+    // Tiles geram muitas requisições; limitá-las aqui quebra o mapa.
+    skip: (req) => req.path.startsWith('/tiles') || req.originalUrl.startsWith('/api/tiles/'),
     handler: (_req, res) => {
       res.status(429).json({ success: false, error: 'Muitas requisições. Tente novamente em instantes.' });
     },
@@ -141,6 +145,7 @@ const PORT = process.env.PORT || 8080;
 app.use('/api/auth', authRoutes);
 app.use('/api/constants', constantsRoutes);
 app.use('/api', healthRoutes);
+app.use('/api/tiles', tilesRoutes);
 app.use('/api/projects', authMiddleware, projectRoutes);
 app.use('/api', engineRoutes);
 app.use('/api/gemini', geminiRoutes);
@@ -150,8 +155,10 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/privacy', authMiddleware, privacyRoutes);
 
 // Static files handling
-// Em dev, `__dirname` aponta para a raiz do repo; em prod, para `dist/server`.
-const staticDir = isProd ? path.resolve(__dirname, '../client') : path.resolve(__dirname);
+// - Em prod: `__dirname` aponta para `dist/server` e o client fica em `dist/client` (../client).
+// - Em desktop (Electron): podemos forçar servir `dist/client` mesmo com NODE_ENV=development.
+const serveBuiltClient = isProd || process.env.SISCQT_SERVE_DIST_CLIENT === 'true';
+const staticDir = serveBuiltClient ? path.resolve(__dirname, '../client') : path.resolve(__dirname);
 app.use(express.static(staticDir));
 
 // SPA Fallback
@@ -164,13 +171,49 @@ app.get(/.*/, (req: Request, res: Response) => {
 // Error handler (fallback)
 app.use(errorHandler);
 
+export type StartServerOptions = {
+  port?: number;
+  host?: string;
+};
+
+export async function startServer(opts: StartServerOptions = {}): Promise<{
+  server: HttpServer;
+  port: number;
+  host: string;
+}> {
+  const host = opts.host ?? (process.env.HOST || '0.0.0.0');
+  const port = opts.port ?? Number(PORT);
+
+  return await new Promise((resolve, reject) => {
+    const server = app.listen(port, host, () => {
+      const addr = server.address();
+      const realPort = typeof addr === 'object' && addr ? addr.port : port;
+      resolve({ server, port: realPort, host });
+    });
+    server.on('error', reject);
+  });
+}
+
+function isEntryPoint(): boolean {
+  const argv1 = process.argv[1];
+  if (!argv1) return false;
+  // Node/Electron em ESM: compara o arquivo real do entrypoint com `import.meta.url`
+  const entryUrl = pathToFileURL(path.resolve(argv1)).href;
+  return entryUrl === import.meta.url;
+}
+
 // Em testes (Vitest), evitamos abrir uma porta / manter handles abertos.
 // O Supertest consegue exercitar o `app` diretamente sem `listen()`.
 const isVitest = process.env.VITEST === 'true' || process.env.VITEST === '1';
-if (!isVitest && process.env.NODE_ENV !== 'test') {
-  app.listen(PORT, () => {
-    console.log(`>>> siSCQT Enterprise active on port ${PORT}`);
-  });
+if (!isVitest && process.env.NODE_ENV !== 'test' && isEntryPoint()) {
+  void startServer({ port: Number(PORT), host: process.env.HOST || '0.0.0.0' })
+    .then(({ port }) => {
+      console.log(`>>> siSCQT Enterprise active on port ${port}`);
+    })
+    .catch((err) => {
+      console.error('>>> Failed to start server:', err);
+      process.exitCode = 1;
+    });
 }
 
 export default app;

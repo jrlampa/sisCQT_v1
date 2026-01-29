@@ -28,6 +28,10 @@ type BaseMapId = 'osm' | 'satellite' | 'light';
 
 const BASEMAP_STORAGE_KEY = 'sisqat_gis_basemap';
 
+// 256x256 PNG preto (data URI) para fallback quando um tile não existir no cache.
+const BLACK_TILE_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAA9JREFUeNrswTEBAAAAwqD1T20JT6AAAAAAAAAAAAAAAAB4GQABJwABv7Vd1QAAAABJRU5ErkJggg==';
+
 const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
   useMapEvents({
     click: (e) => {
@@ -40,11 +44,12 @@ const MapClickHandler = ({ onMapClick }: { onMapClick: (lat: number, lng: number
 const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
   const [geoData, setGeoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [tilesWarning, setTilesWarning] = useState<string | null>(null);
   const [baseMapId, setBaseMapId] = useState<BaseMapId>(() => {
     try {
       const raw = localStorage.getItem(BASEMAP_STORAGE_KEY);
       if (raw === 'osm' || raw === 'satellite' || raw === 'light') return raw;
-    } catch {}
+    } catch { }
     return 'osm';
   });
   const { showToast } = useToast();
@@ -53,7 +58,7 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
     return {
       osm: {
         label: 'Base (OSM Streets)',
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        url: '/api/tiles/osm/{z}/{x}/{y}.png',
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       },
       // “GE Pro” e “Google Maps” sem chave/licença: usamos alternativas abertas de mercado.
@@ -61,12 +66,12 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
       // - light: estilo “maps” mais limpo
       satellite: {
         label: 'GE Pro (Satélite)',
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        url: '/api/tiles/satellite/{z}/{x}/{y}.png',
         attribution: 'Tiles &copy; Esri',
       },
       light: {
         label: 'Google Maps (Estilo)',
-        url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+        url: '/api/tiles/light/{z}/{x}/{y}.png',
         attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a>',
       },
     } satisfies Record<BaseMapId, { label: string; url: string; attribution: string }>;
@@ -75,7 +80,12 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
   useEffect(() => {
     try {
       localStorage.setItem(BASEMAP_STORAGE_KEY, baseMapId);
-    } catch {}
+    } catch { }
+  }, [baseMapId]);
+
+  useEffect(() => {
+    // Mudou o basemap: reseta aviso para permitir nova tentativa.
+    setTilesWarning(null);
   }, [baseMapId]);
 
   const fetchNodes = async () => {
@@ -129,8 +139,8 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
       {loading && (
         <div className="absolute inset-0 z-[1000] bg-white/50 backdrop-blur-sm flex items-center justify-center">
           <div className="flex flex-col items-center">
-             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent animate-spin rounded-full mb-2"></div>
-             <span className="text-[10px] font-black uppercase text-blue-600">Sincronizando GIS...</span>
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent animate-spin rounded-full mb-2"></div>
+            <span className="text-[10px] font-black uppercase text-blue-600">Sincronizando GIS...</span>
           </div>
         </div>
       )}
@@ -159,24 +169,43 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
           ))}
         </select>
       </div>
-      
-      <MapContainer 
+
+      {tilesWarning && (
+        <div className="absolute top-[92px] right-6 z-[700] glass-dark px-4 py-3 rounded-2xl border border-white/40 max-w-[320px]">
+          <div className="text-[10px] font-black uppercase tracking-widest text-orange-600">Tiles indisponíveis</div>
+          <div className="text-[9px] font-bold text-gray-700 uppercase tracking-widest mt-1">{tilesWarning}</div>
+        </div>
+      )}
+
+      <MapContainer
         // Cabo Frio - RJ (padrão)
-        center={[-22.8794, -42.0187]} 
-        zoom={14} 
-        style={{ height: '100%', width: '100%' }}
+        center={[-22.8794, -42.0187]}
+        zoom={14}
+        style={{ height: '100%', width: '100%', background: '#000' }}
         scrollWheelZoom={true}
       >
         <TileLayer
           key={baseMapId}
           url={baseMaps[baseMapId].url}
           attribution={baseMaps[baseMapId].attribution}
+          errorTileUrl={BLACK_TILE_DATA_URL}
+          eventHandlers={{
+            tileerror: () => {
+              // Se não houver tile no cache e não for possível buscar online, Leaflet dispara tileerror.
+              const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+              setTilesWarning(
+                offline
+                  ? 'Offline: exibindo apenas tiles cacheados (fundo preto quando faltar).'
+                  : 'Sem acesso aos tiles agora (verifique conexão ou cache).',
+              );
+            },
+          }}
         />
-        
+
         <MapClickHandler onMapClick={handleAddNode} />
 
         {geoData && geoData.features && geoData.features.map((feature: any) => (
-          <Marker 
+          <Marker
             key={feature.id || Math.random()}
             position={[feature.geometry.coordinates[1], feature.geometry.coordinates[0]]}
             icon={feature.properties.type === 'TRAFO' ? trafoIcon : posteIcon}
@@ -193,7 +222,7 @@ const GISMap: React.FC<GISMapProps> = ({ onNodeCreated }) => {
           </Marker>
         ))}
       </MapContainer>
-      
+
       <div className="absolute bottom-6 left-6 z-[500] glass-dark p-4 rounded-2xl border border-white/40 pointer-events-none">
         <h5 className="text-[10px] font-black text-blue-600 uppercase mb-2">Legenda de Rede</h5>
         <div className="flex items-center gap-3 mb-1">

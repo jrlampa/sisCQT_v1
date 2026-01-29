@@ -9,6 +9,7 @@ import '@testing-library/jest-dom/vitest';
 process.env.NODE_ENV = 'test';
 process.env.ENABLE_MOCK_AUTH = 'true';
 process.env.ENABLE_ENGINE_WORKER = 'false';
+process.env.LOCAL_JWT_SECRET = 'test-local-jwt-secret-for-vitest';
 
 function prismaMockFactory() {
   return {
@@ -59,6 +60,15 @@ function prismaMockFactory() {
       },
       user: {
         upsert: vi.fn().mockResolvedValue({
+          id: 'test-user-id',
+          email: 'teste@im3brasil.com.br',
+          name: 'Desenvolvedor Local',
+          plan: 'Pro',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          projects: [],
+        }),
+        findUnique: vi.fn().mockResolvedValue({
           id: 'test-user-id',
           email: 'teste@im3brasil.com.br',
           name: 'Desenvolvedor Local',

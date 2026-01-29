@@ -92,12 +92,18 @@ export class ApiService {
   }
 
   static async syncUser(accessToken: string): Promise<User> {
+    // Durante o login online, usamos o token corporativo/Google apenas para sincronizar.
+    // O backend retorna um token local (offline-first) para as demais chamadas.
     localStorage.setItem(TOKEN_KEY, accessToken);
     this.notifyAuthChanged();
-    const res = await this.request<{user: User}>('/auth/sync', {
+    const res = await this.request<{ user: User; localToken?: string }>('/auth/sync', {
       method: 'POST',
       body: JSON.stringify({ token: accessToken })
     });
+    if (res.localToken) {
+      localStorage.setItem(TOKEN_KEY, res.localToken);
+      this.notifyAuthChanged();
+    }
     return res.user;
   }
 

@@ -1,11 +1,12 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ApiService } from '../services/apiService';
-import { Project, EngineResult } from '../types';
 import { useProject } from '../context/ProjectContext';
+import { useOnlineStatus } from '../hooks/useOnlineStatus';
 
 const Chatbot: React.FC = () => {
   const { project, activeResult: result } = useProject();
+  const isOnline = useOnlineStatus();
 
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
     { role: 'ai', text: 'Olá Engenheiro! Sou o Theseus. Analisei os fluxos de carga e as quedas de tensão do seu cenário atual. Estou pronto para otimizar essa rede com você. O que deseja validar agora?' }
@@ -24,7 +25,22 @@ const Chatbot: React.FC = () => {
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
-    
+
+    if (!isOnline) {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'ai' && last.text.includes('Você está offline')) return prev;
+        return [
+          ...prev,
+          {
+            role: 'ai',
+            text: 'Você está offline. O Theseus AI (Gemini) precisa de internet para responder. Conecte-se e tente novamente.',
+          },
+        ];
+      });
+      return;
+    }
+
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', text: userMsg }]);
@@ -75,11 +91,23 @@ const Chatbot: React.FC = () => {
           </div>
         </div>
         <div className="hidden md:block">
-          <div className="px-3 py-1 bg-green-100 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-200">
-            Sincronizado
-          </div>
+          {isOnline ? (
+            <div className="px-3 py-1 bg-green-100 text-green-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-green-200">
+              Online
+            </div>
+          ) : (
+            <div className="px-3 py-1 bg-amber-100 text-amber-700 rounded-full text-[10px] font-black uppercase tracking-widest border border-amber-200">
+              Offline (IA indisponível)
+            </div>
+          )}
         </div>
       </header>
+
+      {!isOnline && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-5 py-3 text-xs font-bold">
+          Sem internet: o Theseus AI (Gemini) fica indisponível. Você ainda pode usar Editor, Engine, Import e GIS offline.
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto flex flex-col gap-4 p-4 scroll-smooth custom-scrollbar">
         {messages.map((m, i) => (
@@ -103,14 +131,14 @@ const Chatbot: React.FC = () => {
       <div className="glass-dark p-3 rounded-full flex items-center gap-3 border border-white/80 shadow-inner">
         <input 
           className="flex-1 bg-transparent px-6 py-2 outline-none text-gray-700 font-medium text-sm placeholder:text-gray-400"
-          placeholder="Peça ao Theseus para analisar o carregamento ou sugerir cabos..."
+          placeholder={isOnline ? "Peça ao Theseus para analisar o carregamento ou sugerir cabos..." : "Offline: conecte-se à internet para usar o Theseus AI..."}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
         />
         <button 
           onClick={handleSend}
-          disabled={loading}
+          disabled={loading || !isOnline}
           className="bg-blue-600 text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-blue-200 hover:scale-105 active:scale-95 transition-all disabled:opacity-50"
         >
           ➔

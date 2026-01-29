@@ -1,14 +1,21 @@
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { OAuth2Client } from 'google-auth-library';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import crypto from 'node:crypto';
 
 type GetKeyCallback = (err: Error | null, key?: string) => void;
 
 let cachedJwksClient: ReturnType<typeof jwksClient> | null = null;
 let cachedGoogleClient: OAuth2Client | null = null;
+let cachedLocalJwtSecret: string | null = null;
 
 const DEV_MOCK_TOKEN = 'dev-token-im3';
 const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com']);
+const LOCAL_SESSION_ISSUER = 'sisCQT-local';
+const LOCAL_SESSION_AUDIENCE = 'sisCQT';
 
 class AuthConfigError extends Error {
   constructor(message: string) {
@@ -150,6 +157,126 @@ export function verifyToken(token: string): Promise<jwt.JwtPayload | undefined> 
       }
       resolve(decoded as jwt.JwtPayload | undefined);
     });
+  });
+}
+
+function getLocalSecretFilePath(): string {
+  const envPath = (process.env.LOCAL_JWT_SECRET_PATH || '').trim();
+  if (envPath) return envPath;
+
+  const baseDir =
+    (process.env.SISCQT_DATA_DIR || '').trim() ||
+    (process.env.APPDATA || '').trim() ||
+    (process.env.LOCALAPPDATA || '').trim() ||
+    path.join(os.homedir(), '.sisCQT_v1_desktop');
+
+  return path.join(baseDir, 'auth', 'local_jwt_secret');
+}
+
+async function getOrCreateLocalJwtSecret(): Promise<string> {
+  const fromEnv = (process.env.LOCAL_JWT_SECRET || '').trim();
+  if (fromEnv) {
+    cachedLocalJwtSecret = fromEnv;
+    return fromEnv;
+  }
+
+  if (cachedLocalJwtSecret) return cachedLocalJwtSecret;
+
+  const secretPath = getLocalSecretFilePath();
+  try {
+    const existing = (await fs.readFile(secretPath, 'utf8')).trim();
+    if (existing) {
+      cachedLocalJwtSecret = existing;
+      return existing;
+    }
+  } catch {
+    // arquivo ainda não existe
+  }
+
+  // Gera um segredo por dispositivo (desktop). Em servidores stateless,
+  // recomenda-se fornecer LOCAL_JWT_SECRET via env.
+  const secret = crypto.randomBytes(32).toString('base64url');
+  await fs.mkdir(path.dirname(secretPath), { recursive: true });
+  const tmpPath = `${secretPath}.${process.pid}.tmp`;
+  await fs.writeFile(tmpPath, secret, { encoding: 'utf8' });
+  try {
+    await fs.rename(tmpPath, secretPath);
+    cachedLocalJwtSecret = secret;
+    return secret;
+  } catch (err: any) {
+    // Possível corrida entre processos (ou filesystem mais restritivo).
+    // Se outro processo já criou, reaproveitamos o existente.
+    try {
+      const existing = (await fs.readFile(secretPath, 'utf8')).trim();
+      if (existing) {
+        cachedLocalJwtSecret = existing;
+        return existing;
+      }
+    } catch {
+      // ignora
+    }
+    throw err;
+  } finally {
+    try {
+      await fs.unlink(tmpPath);
+    } catch {
+      // ignora
+    }
+  }
+}
+
+function getLocalSessionTtlDays(): number {
+  const raw = Number((process.env.LOCAL_SESSION_TTL_DAYS || '').trim());
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  return 30;
+}
+
+export async function issueLocalSessionToken(user: {
+  id: string;
+  email: string;
+  name?: string | null;
+  plan?: unknown;
+  authProvider?: unknown;
+}): Promise<string> {
+  const secret = await getOrCreateLocalJwtSecret();
+  const ttlDays = getLocalSessionTtlDays();
+
+  return jwt.sign(
+    {
+      email: user.email,
+      name: user.name ?? undefined,
+      plan: user.plan as any,
+      authProvider: user.authProvider as any,
+    },
+    secret,
+    {
+      algorithm: 'HS256',
+      issuer: LOCAL_SESSION_ISSUER,
+      audience: LOCAL_SESSION_AUDIENCE,
+      subject: user.id,
+      expiresIn: `${ttlDays}d`,
+    }
+  );
+}
+
+export async function verifyLocalSessionToken(token: string): Promise<jwt.JwtPayload | undefined> {
+  if (!token) return Promise.reject(new Error('Token vazio ou ausente.'));
+  const secret = await getOrCreateLocalJwtSecret();
+
+  return new Promise((resolve, reject) => {
+    jwt.verify(
+      token,
+      secret,
+      {
+        algorithms: ['HS256'],
+        issuer: LOCAL_SESSION_ISSUER,
+        audience: LOCAL_SESSION_AUDIENCE,
+      },
+      (err, decoded) => {
+        if (err) return reject(err);
+        resolve(decoded as jwt.JwtPayload | undefined);
+      }
+    );
   });
 }
 
