@@ -9,6 +9,31 @@ import { verifyLocalSessionToken, verifyToken } from '../utils/tokenUtils.js';
 export const authMiddleware: RequestHandler = async (req, res, next) => {
   const authHeader = req.headers?.authorization;
   const isProd = process.env.NODE_ENV === 'production';
+  const isDesktopMode = process.env.SISCQT_DESKTOP_MODE === 'true';
+
+  // MODO DESKTOP - Fallback para usuário local
+  // Permite funcionamento offline após primeiro login
+  if (isDesktopMode && (!authHeader || authHeader === 'Bearer desktop-local-user')) {
+    try {
+      // Cria/busca usuário local padrão para desktop
+      const localEmail = 'local@desktop.siscqt';
+      const user = await prisma.user.upsert({
+        where: { email: localEmail },
+        update: { plan: 'Enterprise', authProvider: 'ENTRA' },
+        create: {
+          email: localEmail,
+          name: 'Usuário Local (Desktop)',
+          plan: 'Enterprise',
+          authProvider: 'ENTRA',
+        }
+      });
+      req.user = user;
+      return next();
+    } catch (dbError) {
+      console.error("[Desktop Auth] DB Error:", dbError);
+      return res.status(500).json({ success: false, error: 'Erro de banco de dados no modo desktop.' });
+    }
+  }
 
   // MODO DE TESTE / DESENVOLVIMENTO
   // Em produção, mock é sempre desabilitado (Entra-only).

@@ -28,22 +28,33 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const isProd = process.env.NODE_ENV === 'production';
+const isDesktopMode = process.env.SISCQT_DESKTOP_MODE === 'true';
+
+// Desktop mode detection
+if (isDesktopMode) {
+  console.log('>>> sisCQT running in DESKTOP MODE');
+  console.log('>>> Database:', process.env.DESKTOP_DATABASE_URL || 'SQLite (auto-configured)');
+}
 
 // Proxy (Cloud Run / Azure App Service)
 // Necessário para `req.ip` correto (rate limit) e HTTPS detection.
+// Desktop mode não precisa de proxy
 const trustProxyEnv = process.env.TRUST_PROXY;
-const trustProxy =
+const trustProxy = isDesktopMode ? false : (
   trustProxyEnv === undefined
     ? (isProd ? 1 : false)
     : (trustProxyEnv === 'true'
-        ? true
-        : (trustProxyEnv === 'false'
-            ? false
-            : (Number.isFinite(Number(trustProxyEnv)) ? Number(trustProxyEnv) : (isProd ? 1 : false))));
+      ? true
+      : (trustProxyEnv === 'false'
+        ? false
+        : (Number.isFinite(Number(trustProxyEnv)) ? Number(trustProxyEnv) : (isProd ? 1 : false)))));
 app.set('trust proxy', trustProxy);
 
 // Entra-only em produção: falhar cedo se envs obrigatórias não estiverem definidas.
-assertProdAuthConfig();
+// Desktop mode: autenticação é opcional (funcionará com cache)
+if (!isDesktopMode) {
+  assertProdAuthConfig();
+}
 
 // Hardening mínimo (headers + compress)
 app.use(helmet({
@@ -86,6 +97,18 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   const origin = req.headers.origin as string | undefined;
+
+  // Desktop mode: permite todos os origens locais
+  if (isDesktopMode) {
+    res.setHeader('Access-Control-Allow-Origin', origin ?? '*');
+    if (origin) res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Max-Age', '600');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    return next();
+  }
+
   const allowedOrigins = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
     .map((s) => s.trim())
@@ -122,7 +145,8 @@ app.use(express.json({
 app.use(express.urlencoded({ extended: true, limit: urlencodedBodyLimit }));
 
 // Rate limiting básico (principalmente em produção)
-const rateLimitDisabled = process.env.RATE_LIMIT_DISABLED === 'true';
+// Desktop mode: rate limiting desabilitado por padrão (uso local)
+const rateLimitDisabled = isDesktopMode || process.env.RATE_LIMIT_DISABLED === 'true';
 if (!rateLimitDisabled) {
   const windowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
   const max = Number(process.env.RATE_LIMIT_MAX || (isProd ? 300 : 1000));
